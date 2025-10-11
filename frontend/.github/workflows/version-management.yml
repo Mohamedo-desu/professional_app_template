@@ -1,0 +1,179 @@
+name: Version Management
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    outputs:
+      type: ${{ steps.previous_tag.outputs.type }}
+      version: ${{ steps.update_backend.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Determine version bump type (major/minor/patch)
+      - name: Get previous tag
+        id: previous_tag
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p')
+          echo "Previous tag: $PREV_TAG"
+          echo "previous_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+          if [[ -z "$PREV_TAG" ]]; then
+            echo "type=major" >> $GITHUB_OUTPUT
+          else
+            CURRENT_VERSION=${GITHUB_REF#refs/tags/v}
+            PREV_VERSION=${PREV_TAG#v}
+            IFS='.' read -r -a CURRENT <<< "$CURRENT_VERSION"
+            IFS='.' read -r -a PREV <<< "$PREV_VERSION"
+
+            if [[ "${CURRENT[0]}" -gt "${PREV[0]}" ]]; then
+              echo "type=major" >> $GITHUB_OUTPUT
+            elif [[ "${CURRENT[1]}" -gt "${PREV[1]}" ]]; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "type=patch" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Debug version type
+        run: |
+          echo "Detected release type: ${{ steps.previous_tag.outputs.type }}"
+
+      # Notify Convex of new version release
+      - name: Update Convex backend
+        id: update_backend
+        env:
+          CONVEX_URL: ${{ secrets.CONVEX_DEPLOYMENT_URL }}
+          CONVEX_DEPLOYMENT_TOKEN: ${{ secrets.CONVEX_DEPLOYMENT_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "Creating version record in Convex..."
+          RESPONSE=$(curl -s -o /tmp/response.txt -w "%{http_code}" -X POST "$CONVEX_URL/version" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $CONVEX_DEPLOYMENT_TOKEN" \
+            -d "{
+              \"version\": \"$VERSION\",
+              \"type\": \"${{ steps.previous_tag.outputs.type }}\",
+              \"releaseNotes\": \"Version $VERSION Released\"
+            }")
+
+          if [ "$RESPONSE" != "200" ] && [ "$RESPONSE" != "201" ]; then
+            echo "❌ Convex API returned HTTP $RESPONSE"
+            echo "Response:"
+            cat /tmp/response.txt
+            exit 1
+          else
+            echo "✅ Successfully created version record in Convex."
+          fi
+
+  # --- OTA Updates for minor/patch ---
+  update:
+    needs: version-check
+    if: needs.version-check.outputs.type == 'minor' || needs.version-check.outputs.type == 'patch'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [preview]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: expo/expo-github-action@v7
+        with:
+          expo-version: latest
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: npm install -g eas-cli
+
+      - name: Create OTA Update (EAS)
+        run: |
+          eas update --branch ${{ matrix.profile }} \
+            --message "Version ${GITHUB_REF#refs/tags/v}" \
+            --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.HIMISIRI_EXPO_TOKEN }}
+          APP_ENV: ${{ matrix.profile }}
+          EXPO_PUBLIC_BACKEND_URL: ${{ secrets.CONVEX_DEPLOYMENT_URL }}
+
+  # --- Full Builds for major releases ---
+  build:
+    needs: version-check
+    if: needs.version-check.outputs.type == 'major'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [preview]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: expo/expo-github-action@v7
+        with:
+          expo-version: latest
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: npm install -g eas-cli
+
+      - name: Trigger EAS Build
+        run: |
+          eas build --platform android \
+            --profile ${{ matrix.profile }} \
+            --non-interactive --no-wait
+        env:
+          EXPO_TOKEN: ${{ secrets.HIMISIRI_EXPO_TOKEN }}
+          EXPO_PUBLIC_BACKEND_URL: ${{ secrets.CONVEX_DEPLOYMENT_URL }}
+
+  # --- Create GitHub Release ---
+  release:
+    needs: [version-check, update, build]
+    runs-on: ubuntu-latest
+    if: always() && (needs.update.result == 'success' || needs.build.result == 'success')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get tag version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          generate_release_notes: true
+          body: |
+            ## What's Changed
+            This release includes all changes since the last version.
+
+            ## Full Changelog
+            [View the changelog](https://github.com/Mohamedo-desu/himisiri_app/commits/${{ steps.get_version.outputs.VERSION }})
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # --- Rollback on failure ---
+  rollback:
+    needs: [version-check, update, build]
+    if: always() && (needs.update.result == 'failure' || needs.build.result == 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rollback Convex version
+        env:
+          CONVEX_URL: ${{ secrets.CONVEX_DEPLOYMENT_URL }}
+          CONVEX_DEPLOYMENT_TOKEN: ${{ secrets.CONVEX_DEPLOYMENT_TOKEN }}
+        run: |
+          VERSION=${{ needs.version-check.outputs.version }}
+          echo "Rolling back version $VERSION..."
+          curl -X DELETE "$CONVEX_URL/version/$VERSION" \
+            -H "Authorization: Bearer $CONVEX_DEPLOYMENT_TOKEN"

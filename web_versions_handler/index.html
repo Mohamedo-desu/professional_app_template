@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- =========================
+         🌐 APP CONFIG VARIABLES
+    ========================== -->
+    <script>
+      window.APP_CONFIG = {
+        APP_NAME: "YourApp",
+        APP_TAGLINE: "tagline",
+        APP_DESCRIPTION: "YourApp lets you ",
+        APP_URL_SCHEME: "yourapp",
+        ANDROID_PACKAGE: "com.company.yourapp",
+        IOS_APP_ID: "1234567890",
+        PLAY_STORE_URL:
+          "https://play.google.com/store/apps/details?id=com.company.yourapp",
+        CONVEX_URL: "https://elegant-whale-471.convex.site",
+        THEME_COLOR: "#3C2A4D",
+        APP_ICON_URL: "https://yourapp.com/icon.png",
+      };
+    </script>
+
+    <title></title>
+    <meta name="theme-color" content="" />
+
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- iOS Smart App Banner -->
+    <meta name="apple-itunes-app" content="" />
+
+    <!-- Open Graph for social sharing -->
+    <meta property="og:title" content="" />
+    <meta property="og:description" content="" />
+    <meta property="og:image" content="" />
+    <meta property="og:type" content="website" />
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="logo" id="app-name"></div>
+      <div class="tagline" id="app-tagline"></div>
+
+      <div id="content">
+        <p id="welcome-text"></p>
+        <div class="loading">
+          You can open the app or download the latest version below.
+        </div>
+      </div>
+
+      <!-- Version + Release Notes -->
+      <div id="version-info" class="version-info">
+        <p><strong>Version:</strong> <span id="version">Loading...</span></p>
+        <p><strong>Release Notes:</strong></p>
+        <ul id="release-notes">
+          <li>Fetching latest notes...</li>
+        </ul>
+      </div>
+
+      <div class="buttons">
+        <a href="#" id="openAppBtn" class="btn btn-primary">Open in App</a>
+        <a id="downloadApkBtn" href="#" class="btn btn-secondary">
+          Download Latest APK
+        </a>
+      </div>
+    </div>
+
+    <script>
+      // === 🧠 Apply config values to HTML ===
+      const cfg = window.APP_CONFIG;
+
+      // Update document title and metadata
+      document.title = `${cfg.APP_NAME} - ${cfg.APP_TAGLINE}`;
+      document.querySelector('meta[name="theme-color"]').content =
+        cfg.THEME_COLOR;
+      document
+        .querySelector('meta[name="apple-itunes-app"]')
+        .setAttribute(
+          "content",
+          `app-id=${cfg.IOS_APP_ID}, app-argument=${cfg.APP_URL_SCHEME}://open`
+        );
+
+      // Open Graph metadata
+      document.querySelector('meta[property="og:title"]').content =
+        cfg.APP_NAME;
+      document.querySelector('meta[property="og:description"]').content =
+        cfg.APP_DESCRIPTION;
+      document.querySelector('meta[property="og:image"]').content =
+        cfg.APP_ICON_URL;
+
+      // Update page text
+      document.getElementById("app-name").textContent = cfg.APP_NAME;
+      document.getElementById("app-tagline").textContent = cfg.APP_TAGLINE;
+      document.getElementById(
+        "welcome-text"
+      ).textContent = `Welcome to ${cfg.APP_NAME}!`;
+      document.getElementById("downloadApkBtn").href = cfg.PLAY_STORE_URL;
+    </script>
+
+    <script src="script.js"></script>
+  </body>
+</html>
