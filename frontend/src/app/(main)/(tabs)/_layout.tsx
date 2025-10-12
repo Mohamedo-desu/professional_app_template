@@ -46,6 +46,14 @@ const TabsLayout = () => {
       headerShown: true,
       headerTitle: APP_NAME,
     },
+    {
+      name: "settings",
+      label: "Settings",
+      solid: IconsSolid.Cog6ToothIcon,
+      outline: IconsOutline.Cog6ToothIcon,
+      headerShown: true,
+      headerTitle: APP_NAME,
+    },
   ];
 
   const commonScreenOptions: BottomTabNavigationOptions = {
@@ -97,10 +105,10 @@ const TabsLayout = () => {
                       style={styles.headerRightContainer}
                       activeOpacity={0.8}
                       onPress={() => {
-                        router.navigate("/(main)/create");
+                        router.navigate("/(main)/add");
                       }}
                     >
-                      <IconsOutline.PlusIcon color={"white"} size={22} />
+                      <IconsSolid.PlusCircleIcon color={"white"} size={25} />
                     </TouchableOpacity>
                   ),
                   headerTitle: (props) => {
@@ -113,18 +121,16 @@ const TabsLayout = () => {
                           textAlign="center"
                           color="onPrimary"
                           allowFontScaling={allowFontScaling}
-                          style={[style as any, { color: tintColor }]}
                         >
                           {APP_NAME}
                         </CustomText>
 
                         <CustomText
-                          variant="tiny"
+                          variant="small"
                           italic
                           textAlign="center"
                           color="onPrimary"
                           allowFontScaling={allowFontScaling}
-                          style={{ color: tintColor }}
                         >
                           {TAGLINE}
                         </CustomText>
