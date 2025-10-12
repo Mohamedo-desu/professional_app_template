@@ -8,14 +8,18 @@ const MainLayout = () => {
   return (
     <Stack
       screenOptions={{
-        headerShown: false,
         headerStyle: {
           backgroundColor: theme.colors.surface,
         },
         headerTintColor: theme.colors.onSurface,
       }}
     >
-      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="(tabs)"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 };

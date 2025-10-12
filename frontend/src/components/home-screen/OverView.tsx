@@ -1,25 +1,34 @@
+import { useDailyEntryStore } from "@/store/useDailyEntry";
 import React, { useMemo } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import CustomText from "../common/CustomText";
 
 const OverView = () => {
+  const { currentEntry } = useDailyEntryStore();
+  const totalSales =
+    currentEntry?.sales?.reduce((sum, s) => sum + (s.total || 0), 0) || 0;
+  const totalDebts =
+    currentEntry?.debts?.reduce((sum, d) => sum + (d.totalOwed || 0), 0) || 0;
+
+  const profit = totalSales - totalDebts;
+
   const CONTAINER_ITEMS = useMemo(
     () => [
       {
         id: "1",
         title: "Total Sales",
-        amount: 2_000,
+        amount: totalSales,
       },
       {
         id: "2",
         title: "Profit",
-        amount: 500,
+        amount: profit,
       },
       {
         id: "3",
         title: "Total Debts",
-        amount: 200,
+        amount: totalDebts,
       },
     ],
     []

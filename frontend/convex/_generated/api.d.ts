@@ -15,6 +15,8 @@ import type {
 } from "convex/server";
 import type * as actions from "../actions.js";
 import type * as customFunctions from "../customFunctions.js";
+import type * as customer from "../customer.js";
+import type * as dailyEntries from "../dailyEntries.js";
 import type * as http from "../http.js";
 import type * as notifications from "../notifications.js";
 import type * as rateLimitedFunctions from "../rateLimitedFunctions.js";
@@ -35,6 +37,8 @@ import type * as versioning from "../versioning.js";
 declare const fullApi: ApiFromModules<{
   actions: typeof actions;
   customFunctions: typeof customFunctions;
+  customer: typeof customer;
+  dailyEntries: typeof dailyEntries;
   http: typeof http;
   notifications: typeof notifications;
   rateLimitedFunctions: typeof rateLimitedFunctions;
