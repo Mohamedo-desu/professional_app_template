@@ -66,7 +66,7 @@ function RootLayout() {
         </UserPresenceProvider>
       </ClerkAndConvexProvider>
       <SystemBars
-        style={theme.colors.background === "#121212" ? "light" : "dark"}
+        style={theme.colors.background === "#121212" ? "light" : "light"}
       />
       <Toast
         config={ToastConfig}

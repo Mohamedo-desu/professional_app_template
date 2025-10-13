@@ -1,13 +1,15 @@
-import ScrollToTopFab from "@/components/common/ScrollToTopFab";
+import AddSaleItemFab from "@/components/common/AddSaleItemFab";
+import ScreenAppBar from "@/components/common/ScreenAppBar";
+
 import React from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 
 const HomeScreen = () => {
   return (
     <View style={styles.screen}>
-      <Text>HomeScreen</Text>
-      <ScrollToTopFab />
+      <ScreenAppBar title="UH&C POS SYSTEM" showGoBack={true} />
+      <AddSaleItemFab />
     </View>
   );
 };
@@ -19,7 +21,6 @@ const styles = StyleSheet.create((theme, rt) => ({
     flex: 1,
     backgroundColor: theme.colors.background,
     paddingHorizontal: theme.paddingHorizontal,
-    paddingVertical: theme.gap(2),
     gap: theme.gap(1),
   },
 }));
