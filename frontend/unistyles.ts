@@ -55,7 +55,7 @@ export const DarkColors = {
   onBackground: "#FFFFFF",
   surface: "#1E1E1E",
   onSurface: "#FFFFFF",
-  backgroundOverlay: "rgba(0,0,0,0.8)",
+  backgroundOverlay: "rgba(0,0,0,0.1)",
   backgroundPrimaryOverlay: "rgba(255, 255, 255, 0.1)",
 
   error: "#EF5350",

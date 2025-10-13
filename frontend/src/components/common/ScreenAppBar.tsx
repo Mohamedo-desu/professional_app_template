@@ -1,4 +1,5 @@
 import { TAB_BAR_HEIGHT } from "@/constants/device";
+import { format } from "date-fns";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
@@ -8,7 +9,8 @@ import { StyleSheet } from "react-native-unistyles";
 import { PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
 import CustomText from "./CustomText";
 
-const ScreenAppBar = ({ showGoBack = false, title }) => {
+const ScreenAppBar = ({ showGoBack = false, title, description }: any) => {
+  const today = format(new Date(), "eeee, do MMMM, yyyy");
   return (
     <LinearGradient
       colors={[PRIMARY_COLOR, TERTIARY_COLOR]}
@@ -30,6 +32,10 @@ const ScreenAppBar = ({ showGoBack = false, title }) => {
         <CustomText variant="subtitle1" color="onPrimary" textAlign="center">
           {title}
         </CustomText>
+
+        <CustomText variant="subtitle1" color="onPrimary" textAlign="center">
+          {description ? description : today}
+        </CustomText>
       </View>
 
       {/* 🔹 Right Side Placeholder (balances layout) */}
@@ -42,10 +48,6 @@ export default ScreenAppBar;
 
 const styles = StyleSheet.create((theme, rt) => ({
   container: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
     height: TAB_BAR_HEIGHT + rt.insets.top,
     paddingTop: rt.insets.top,
     flexDirection: "row",

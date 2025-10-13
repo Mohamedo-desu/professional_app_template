@@ -1,7 +1,12 @@
+import { ELEVATION } from "@/constants/device";
 import { useDailyEntryStore } from "@/store/useDailyEntry";
+import { shortenNumber } from "@/utils/functions";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { BADGE_COLOR, PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
+import CustomButton from "../common/CustomButton";
 import CustomText from "../common/CustomText";
 
 const OverView = () => {
@@ -18,36 +23,47 @@ const OverView = () => {
       {
         id: "1",
         title: "Total Sales",
-        amount: totalSales,
+        amount: 10000,
       },
       {
         id: "2",
         title: "Profit",
-        amount: profit,
-      },
-      {
-        id: "3",
-        title: "Total Debts",
-        amount: totalDebts,
+        amount: 5200,
       },
     ],
     []
   );
 
   return (
-    <View style={styles.container}>
-      {CONTAINER_ITEMS.map((item) => {
-        return (
-          <View key={item.id} style={styles.card}>
-            <CustomText variant="label" semibold>
-              {item.title}
-            </CustomText>
-            <CustomText variant="subtitle1" bold color="primary">
-              KES.{item.amount}
-            </CustomText>
-          </View>
-        );
-      })}
+    <View style={styles.OverviewWrapper}>
+      <LinearGradient
+        colors={[TERTIARY_COLOR, PRIMARY_COLOR]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.container}
+      >
+        {CONTAINER_ITEMS.map((item) => {
+          return (
+            <View key={item.id} style={styles.card}>
+              <CustomText variant="subtitle2" semibold>
+                {item.title}
+              </CustomText>
+              <CustomText
+                variant="headline"
+                bold
+                color={item.id === "2" ? "success" : "primary"}
+              >
+                {shortenNumber(item.amount)}
+              </CustomText>
+            </View>
+          );
+        })}
+      </LinearGradient>
+      <CustomButton
+        text={"Close For Today"}
+        onPress={() => undefined}
+        style={{ backgroundColor: BADGE_COLOR }}
+      />
     </View>
   );
 };
@@ -55,20 +71,29 @@ const OverView = () => {
 export default OverView;
 
 const styles = StyleSheet.create((theme) => ({
+  OverviewWrapper: {
+    marginVertical: theme.gap(1),
+    gap: theme.gap(1),
+  },
   container: {
-    flexDirection: "row",
     flexWrap: "wrap",
     backgroundColor: theme.colors.surface,
     gap: theme.gap(2),
     borderRadius: theme.radii.regular,
     padding: theme.paddingHorizontal,
-    marginBottom: theme.gap(1),
+    height: theme.gap(30),
+    elevation: ELEVATION,
+    borderWidth: 1,
+    borderColor: theme.colors.tertiary + "22",
+    borderCurve: "circular",
   },
   card: {
     flex: 1,
     backgroundColor: theme.colors.background,
     borderRadius: theme.radii.regular,
     paddingHorizontal: theme.paddingHorizontal,
-    width: theme.gap(12),
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
 }));

@@ -41,7 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: packageName,
       softwareKeyboardLayoutMode: "pan",
       edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: true,
+      predictiveBackGestureEnabled: false,
     },
     updates: {
       url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
