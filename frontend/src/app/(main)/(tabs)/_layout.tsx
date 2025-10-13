@@ -53,8 +53,8 @@ const TabsLayout = () => {
     },
     tabBarBadgeStyle: {
       backgroundColor: BADGE_COLOR,
-      fontFamily: Fonts.Regular,
-      fontSize: 12,
+      fontFamily: Fonts.SemiBold,
+      fontSize: 10,
     },
     tabBarActiveTintColor: theme.colors.onPrimary,
     tabBarInactiveTintColor: theme.colors.grey400,
@@ -71,7 +71,6 @@ const TabsLayout = () => {
               key={name}
               name={name}
               options={{
-                tabBarShowLabel: false,
                 tabBarIcon: ({ focused, size, color }) =>
                   focused ? (
                     <SolidIcon size={size} color={color} />

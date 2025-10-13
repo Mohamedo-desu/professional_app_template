@@ -1,25 +1,14 @@
 import { Stack } from "expo-router";
 import React from "react";
-import { useUnistyles } from "react-native-unistyles";
 
 const MainLayout = () => {
-  const { theme } = useUnistyles();
-
   return (
     <Stack
       screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.colors.surface,
-        },
-        headerTintColor: theme.colors.onSurface,
+        headerShown: false,
       }}
     >
-      <Stack.Screen
-        name="(tabs)"
-        options={{
-          headerShown: false,
-        }}
-      />
+      <Stack.Screen name="(tabs)" />
     </Stack>
   );
 };

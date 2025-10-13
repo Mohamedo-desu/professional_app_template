@@ -8,7 +8,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
 import CustomText from "./CustomText";
 
-const ScreenAppBar = ({ showGoBack, title }) => {
+const ScreenAppBar = ({ showGoBack = false, title }) => {
   return (
     <LinearGradient
       colors={[PRIMARY_COLOR, TERTIARY_COLOR]}
@@ -19,10 +19,7 @@ const ScreenAppBar = ({ showGoBack, title }) => {
       {/* 🔹 Left Section (Back Button) */}
       <View style={styles.sideContainer}>
         {showGoBack && router.canGoBack() && (
-          <TouchableOpacity
-            onPress={() => router.canGoBack()}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
             <BackwardIcon color="white" size={24} />
           </TouchableOpacity>
         )}

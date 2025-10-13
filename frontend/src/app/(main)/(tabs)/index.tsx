@@ -1,4 +1,3 @@
-import AddSaleItemFab from "@/components/common/AddSaleItemFab";
 import ScreenAppBar from "@/components/common/ScreenAppBar";
 
 import React from "react";
@@ -8,8 +7,7 @@ import { StyleSheet } from "react-native-unistyles";
 const HomeScreen = () => {
   return (
     <View style={styles.screen}>
-      <ScreenAppBar title="UH&C POS SYSTEM" showGoBack={true} />
-      <AddSaleItemFab />
+      <ScreenAppBar title="UH&C POS SYSTEM" showGoBack={false} />
     </View>
   );
 };
@@ -21,6 +19,6 @@ const styles = StyleSheet.create((theme, rt) => ({
     flex: 1,
     backgroundColor: theme.colors.background,
     paddingHorizontal: theme.paddingHorizontal,
-    gap: theme.gap(1),
+    position: "relative",
   },
 }));
