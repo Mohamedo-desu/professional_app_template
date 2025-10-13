@@ -1,32 +1,34 @@
+import { TAB_BAR_HEIGHT } from "@/constants/device";
 import { BottomTabBar, BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef } from "react";
-import { View } from "react-native";
+import { useWindowDimensions } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import Animated, {
+  Easing,
   useAnimatedStyle,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { StyleSheet } from "react-native-unistyles";
-
-const AnimatedView = Animated.createAnimatedComponent(View);
-
-export const TAB_BAR_HEIGHT = 64; // px, adjust as needed
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import { PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
 
 interface CustomTabBarProps extends BottomTabBarProps {
   scrollY: SharedValue<number>;
 }
 
-const CustomTabBar: React.FC<CustomTabBarProps> = (props) => {
-  const { scrollY, ...tabBarProps } = props;
+const CustomTabBar: React.FC<CustomTabBarProps> = ({
+  scrollY,
+  ...tabBarProps
+}) => {
+  const { theme } = useUnistyles();
   const insets = useSafeAreaInsets();
   const lastScrollY = useRef(0);
-  const tabBarVisible = useRef(true);
   const visibleValue = useRef(true);
 
-  // We use a local shared value for animation
+  const { width } = useWindowDimensions();
+
   const animatedStyle = useAnimatedStyle(() => {
-    // Determine direction
     let visible = visibleValue.current;
     if (scrollY.value > lastScrollY.current + 10) {
       visible = false;
@@ -35,6 +37,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = (props) => {
     }
     lastScrollY.current = scrollY.value;
     visibleValue.current = visible;
+
     const hideY = TAB_BAR_HEIGHT + insets.bottom;
     return {
       transform: [
@@ -45,20 +48,52 @@ const CustomTabBar: React.FC<CustomTabBarProps> = (props) => {
     };
   });
 
+  // 🎯 Animated indicator
+  const indicatorStyle = useAnimatedStyle(() => {
+    const tabWidth = width / tabBarProps.state.routes.length;
+    return {
+      width: tabWidth,
+      left: withTiming(tabBarProps.state.index * tabWidth, {
+        duration: 300,
+        easing: Easing.elastic(1),
+      }),
+    };
+  });
+
   return (
-    <AnimatedView style={[styles.tabBar, animatedStyle]}>
-      <BottomTabBar {...tabBarProps} />
-    </AnimatedView>
+    <Animated.View style={[styles.container, animatedStyle]}>
+      <LinearGradient
+        colors={[PRIMARY_COLOR, TERTIARY_COLOR]} // customize gradient colors
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            height: TAB_BAR_HEIGHT + insets.bottom,
+          },
+        ]}
+      />
+      <BottomTabBar {...tabBarProps} style={[{ height: TAB_BAR_HEIGHT }]} />
+      <Animated.View style={[styles.slidingIndicator, indicatorStyle]} />
+    </Animated.View>
   );
 };
 
-const styles = StyleSheet.create((theme) => ({
-  tabBar: {
+const styles = StyleSheet.create((theme, rt) => ({
+  container: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 100,
+    overflow: "hidden",
+  },
+  slidingIndicator: {
+    backgroundColor: theme.colors.tertiary,
+    position: "absolute",
+    top: 0,
+    height: 3,
+    elevation: 3,
   },
 }));
 

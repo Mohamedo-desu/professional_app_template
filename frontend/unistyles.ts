@@ -5,9 +5,9 @@ import { StyleSheet } from "react-native-unistyles";
 export const BASE_GAP = 5;
 
 // Primary color used in both themes
-export const PRIMARY_COLOR = "#22df96"; // deep purple for mystery & trust
-export const SECONDARY_COLOR = "#5062ff"; // coral accent for emotion & warmth
-export const TERTIARY_COLOR = "#8321f3"; // friendly blue for calm balance
+export const PRIMARY_COLOR = "#4b22df"; // deep purple for mystery & trust
+export const SECONDARY_COLOR = "#ff9650"; // coral accent for emotion & warmth
+export const TERTIARY_COLOR = "#219ff3"; // friendly blue for calm balance
 export const BADGE_COLOR = "#E53935"; // vivid red for alerts/urgent badges
 
 export const Colors = {

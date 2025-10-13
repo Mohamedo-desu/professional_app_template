@@ -1,47 +1,24 @@
-import { Ionicons } from "@expo/vector-icons";
+import { TAB_BAR_HEIGHT } from "@/constants/device";
+import { router } from "expo-router";
 import React from "react";
 import { TouchableOpacity } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  withTiming,
-  type SharedValue,
-} from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ShoppingBagIcon } from "react-native-heroicons/solid";
+import Animated, { ZoomIn, ZoomOut } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
-import { TAB_BAR_HEIGHT } from "../tabs/CustomTabBar";
 
-interface ScrollToTopFabProps {
-  onPress: () => void;
-  scrollY: SharedValue<number>;
-}
-
-const ScrollToTopFab: React.FC<ScrollToTopFabProps> = ({
-  onPress,
-  scrollY,
-}) => {
-  const insets = useSafeAreaInsets();
-  const animatedStyle = useAnimatedStyle(() => {
-    const visible = scrollY.value > 80;
-    return {
-      opacity: withTiming(visible ? 1 : 0, { duration: 160 }),
-      transform: [
-        { translateY: withTiming(visible ? 0 : 80, { duration: 160 }) },
-      ],
-      pointerEvents: visible ? "auto" : "none",
-    };
-  });
-  const fabStyle = [
-    styles.fabContainer,
-    { bottom: TAB_BAR_HEIGHT + insets.bottom + 0 },
-  ];
+const AddSaleItemFab = () => {
   return (
-    <Animated.View style={[fabStyle, animatedStyle]}>
+    <Animated.View
+      style={styles.fabContainer}
+      entering={ZoomIn}
+      exiting={ZoomOut}
+    >
       <TouchableOpacity
-        onPress={onPress}
+        onPress={() => router.navigate("/(main)/add")}
         activeOpacity={0.8}
         style={styles.fab}
       >
-        <Ionicons name="arrow-up-circle-sharp" size={24} color="#fff" />
+        <ShoppingBagIcon size={20} color="#fff" />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -51,14 +28,14 @@ const styles = StyleSheet.create((theme, rt) => ({
   fabContainer: {
     position: "absolute",
     right: theme.paddingHorizontal,
-    // bottom is set dynamically
+    bottom: TAB_BAR_HEIGHT + theme.gap(5),
     backgroundColor: theme.colors.primary,
     borderRadius: theme.gap(5),
-    width: theme.gap(7),
-    height: theme.gap(7),
+    width: theme.gap(10),
+    height: theme.gap(10),
     justifyContent: "center",
     alignItems: "center",
-    elevation: 3,
+    elevation: 5,
     overflow: "hidden",
     borderCurve: "continuous",
   },
@@ -70,4 +47,4 @@ const styles = StyleSheet.create((theme, rt) => ({
   },
 }));
 
-export default ScrollToTopFab;
+export default AddSaleItemFab;
