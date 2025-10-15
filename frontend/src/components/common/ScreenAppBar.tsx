@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
 import { TouchableOpacity, View } from "react-native";
-import { BackwardIcon } from "react-native-heroicons/solid";
+import { ArrowLeftCircleIcon } from "react-native-heroicons/solid";
 import { StyleSheet } from "react-native-unistyles";
 import { PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
 import CustomText from "./CustomText";
@@ -22,7 +22,7 @@ const ScreenAppBar = ({ showGoBack = false, title, description }: any) => {
       <View style={styles.sideContainer}>
         {showGoBack && router.canGoBack() && (
           <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-            <BackwardIcon color="white" size={24} />
+            <ArrowLeftCircleIcon color="white" size={30} />
           </TouchableOpacity>
         )}
       </View>
@@ -33,7 +33,7 @@ const ScreenAppBar = ({ showGoBack = false, title, description }: any) => {
           {title}
         </CustomText>
 
-        <CustomText variant="subtitle1" color="onPrimary" textAlign="center">
+        <CustomText variant="label" color="onPrimary" textAlign="center">
           {description ? description : today}
         </CustomText>
       </View>

@@ -15,14 +15,12 @@ import type {
 } from "convex/server";
 import type * as actions from "../actions.js";
 import type * as customFunctions from "../customFunctions.js";
-import type * as customer from "../customer.js";
 import type * as dailyEntries from "../dailyEntries.js";
 import type * as http from "../http.js";
 import type * as notifications from "../notifications.js";
 import type * as rateLimitedFunctions from "../rateLimitedFunctions.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as triggers from "../triggers.js";
-import type * as userPresence from "../userPresence.js";
 import type * as users from "../users.js";
 import type * as versioning from "../versioning.js";
 
@@ -37,14 +35,12 @@ import type * as versioning from "../versioning.js";
 declare const fullApi: ApiFromModules<{
   actions: typeof actions;
   customFunctions: typeof customFunctions;
-  customer: typeof customer;
   dailyEntries: typeof dailyEntries;
   http: typeof http;
   notifications: typeof notifications;
   rateLimitedFunctions: typeof rateLimitedFunctions;
   rateLimits: typeof rateLimits;
   triggers: typeof triggers;
-  userPresence: typeof userPresence;
   users: typeof users;
   versioning: typeof versioning;
 }>;

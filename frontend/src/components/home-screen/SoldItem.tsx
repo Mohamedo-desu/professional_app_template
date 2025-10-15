@@ -1,6 +1,9 @@
 import CustomText from "@/components/common/CustomText";
 import { ELEVATION } from "@/constants/device";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { shortenNumber } from "@/utils/functions";
+import { useMutation } from "convex/react";
 import React, { useState } from "react";
 import { Image, Modal, TouchableOpacity, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -9,29 +12,72 @@ import CustomButton from "../common/CustomButton";
 
 type SoldItemProps = {
   item: {
-    _id?: string | number;
-    id?: string | number;
-    image?: string;
-    title: string;
-    description?: string;
-    amount?: number; // original item price
-    price?: number; // for SaleItem compatibility
-    quantity: number;
-    total?: number;
-    transactionType: string;
+    _id: string;
+    dailyEntryId: string;
+    inventoryId: string;
+    itemName: string;
+    paymentMethod: "cash" | "mpesa";
+    quantitySold: number;
+    totalAmount: number;
+    totalProfit: number;
+    imageUrl?: string;
   };
+  onSaleChanged?: () => void; // optional callback to refresh parent list
 };
 
-const SoldItem: React.FC<SoldItemProps> = ({ item }) => {
-  const price = item.amount ?? item.price ?? 0;
+const SoldItem: React.FC<SoldItemProps> = ({ item, onSaleChanged }) => {
   const [showModal, setShowModal] = useState(false);
-  const [quantity, setQuantity] = useState(item.quantity);
+  const [quantity, setQuantity] = useState(item.quantitySold);
 
-  const total = price * quantity;
+  const addSaleForToday = useMutation(api.dailyEntries.addSaleForToday);
+  const decrementSale = useMutation(api.dailyEntries.decrementSale);
+  const deleteSale = useMutation(api.dailyEntries.deleteSale);
 
   const handleIncrement = () => setQuantity((prev) => prev + 1);
   const handleDecrement = () =>
     setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+
+  const handleAdd = async () => {
+    try {
+      if (!item.inventoryId) throw new Error("Inventory ID is missing.");
+
+      await addSaleForToday({
+        inventoryId: item.inventoryId as Id<"inventory">,
+        quantity,
+        paymentMethod: item.paymentMethod,
+      });
+
+      setQuantity(item.quantitySold); // reset after server update
+      setShowModal(false);
+      onSaleChanged?.();
+    } catch (err: any) {
+      console.error("Failed to add sale:", err);
+    }
+  };
+
+  const handleDecrementServer = async () => {
+    try {
+      await decrementSale({
+        saleId: item._id as Id<"sales">,
+        quantity: 1, // decrement by 1
+      });
+
+      setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+      onSaleChanged?.();
+    } catch (err: any) {
+      console.error("Failed to decrement sale:", err);
+    }
+  };
+
+  const handleDeleteServer = async () => {
+    try {
+      await deleteSale({ saleId: item._id as Id<"sales"> });
+      setShowModal(false);
+      onSaleChanged?.();
+    } catch (err: any) {
+      console.error("Failed to delete sale:", err);
+    }
+  };
 
   return (
     <>
@@ -43,49 +89,50 @@ const SoldItem: React.FC<SoldItemProps> = ({ item }) => {
         <Image
           source={{
             uri:
-              item.image || "https://via.placeholder.com/60x60.png?text=Item",
+              item.imageUrl ||
+              "https://via.placeholder.com/60x60.png?text=Item",
           }}
           style={styles.image}
         />
 
         <View style={styles.details}>
           <CustomText variant="subtitle2" bold numberOfLines={2}>
-            {item.title || "Untitled Item"}
+            {item.itemName}
           </CustomText>
 
           <View style={styles.row}>
             <CustomText variant="body2" bold color="success">
-              {shortenNumber(total)}
+              {shortenNumber(item.totalAmount)}
             </CustomText>
             <CustomText variant="small" color="tertiary">
               × {quantity}
             </CustomText>
           </View>
-          <CustomText variant="label" bold numberOfLines={2} color="secondary">
-            {item.transactionType || "Cash"}
+          <CustomText variant="label" bold color="secondary">
+            {item.paymentMethod.toUpperCase()}
           </CustomText>
         </View>
       </TouchableOpacity>
 
       {/* ===== MODAL ===== */}
-      <Modal transparent={true} visible={showModal} animationType="fade">
+      <Modal transparent visible={showModal} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <Image
               source={{
                 uri:
-                  item.image ||
+                  item.imageUrl ||
                   "https://via.placeholder.com/60x60.png?text=Item",
               }}
               style={styles.modalImage}
             />
 
             <CustomText variant="subtitle1" bold numberOfLines={2}>
-              {item.title || "Untitled Item"}
+              {item.itemName}
             </CustomText>
 
             <CustomText variant="h2" bold color="success">
-              {shortenNumber(total)}
+              {shortenNumber(item.totalAmount)}
             </CustomText>
 
             {/* Quantity Counter */}
@@ -114,22 +161,27 @@ const SoldItem: React.FC<SoldItemProps> = ({ item }) => {
             </View>
 
             <CustomButton
-              text={"Add"}
+              text="Add/Update Sale"
+              onPress={handleAdd}
+              style={{ backgroundColor: PRIMARY_COLOR }}
+            />
+            <CustomButton
+              text="Decrement Sale"
+              onPress={handleDecrementServer}
+              style={{ backgroundColor: "#FFA500" }}
+            />
+            <CustomButton
+              text="Delete Sale"
+              onPress={handleDeleteServer}
+              style={{ backgroundColor: "#FF4D4D" }}
+            />
+            <CustomButton
+              text="Cancel"
               onPress={() => {
-                // You can handle updating parent store here if needed
+                setQuantity(item.quantitySold);
                 setShowModal(false);
               }}
-              style={{
-                backgroundColor: PRIMARY_COLOR,
-              }}
-            />
-
-            <CustomButton
-              text={"Cancel"}
-              onPress={() => setShowModal(false)}
-              style={{
-                backgroundColor: BADGE_COLOR,
-              }}
+              style={{ backgroundColor: BADGE_COLOR }}
             />
           </View>
         </View>
@@ -181,14 +233,13 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.paddingHorizontal,
     elevation: ELEVATION,
     width: "100%",
-    height: "70%",
     justifyContent: "space-around",
     alignItems: "center",
     gap: theme.gap(1),
   },
   modalImage: {
     width: "100%",
-    height: "40%",
+    height: "20%",
     borderRadius: theme.radii.small,
     backgroundColor: theme.colors.background,
   },

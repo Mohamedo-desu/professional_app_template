@@ -78,7 +78,9 @@ export class PushTokenService {
     try {
       const deviceId = await PushTokenManager.getCurrentDeviceId();
       if (deviceId) {
-        await convex.mutation(api.pushTokens.unregisterPushToken, { deviceId });
+        await convex.mutation(api.notifications.unregisterPushToken, {
+          deviceId,
+        });
       }
 
       // Clear local markers

@@ -2,99 +2,138 @@ import {
   customMutation,
   customQuery,
 } from "convex-helpers/server/customFunctions";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
-import { getAuthenticatedUser } from "./users";
+import { tryGetAuthenticatedUser } from "./users";
 
 /**
- * Custom query that automatically authenticates the user
- * and adds the authenticated user to the context
+ * 🧩 Utility: Fetch businesses owned by a user
+ */
+async function getUserBusinesses(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">
+) {
+  const businesses = await ctx.db
+    .query("businesses")
+    .withIndex("by_owner", (q) => q.eq("ownerId", userId))
+    .collect();
+
+  return businesses;
+}
+
+/**
+ * 🔐 Authenticated Query: Requires login
+ * Injects user + single business (if available)
  */
 export const authenticatedQuery = customQuery(query, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     if (!user) {
       throw new Error(
         "Authentication required. Please log in to access this resource."
       );
     }
 
+    const businesses = await getUserBusinesses(ctx, user._id);
+    const business = businesses.length === 1 ? businesses[0] : null;
+
     return {
-      ctx: { ...ctx, user },
-      args: {},
+      ctx: { ...ctx, user, business, businesses },
+      args,
     };
   },
 });
 
 /**
- * Custom query that optionally authenticates the user
- * Adds the user to context if authenticated, null if not
- */
-export const optionalAuthQuery = customQuery(query, {
-  args: {},
-  input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-
-    return {
-      ctx: { ...ctx, user },
-      args: {},
-    };
-  },
-});
-
-/**
- * Custom mutation that automatically authenticates the user
- * and adds the authenticated user to the context
+ * 🔐 Authenticated Mutation: Requires login
+ * Injects user + single business (if available)
  */
 export const authenticatedMutation = customMutation(mutation, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     if (!user) {
       throw new Error(
         "Authentication required. Please log in to perform this action."
       );
     }
 
+    const businesses = await getUserBusinesses(ctx, user._id);
+    const business = businesses.length === 1 ? businesses[0] : null;
+
     return {
-      ctx: { ...ctx, user },
-      args: {},
+      ctx: { ...ctx, user, business, businesses },
+      args,
     };
   },
 });
 
 /**
- * Custom mutation that optionally authenticates the user
- * Adds the user to context if authenticated, null if not
+ * 🟢 Optional Auth Query: Doesn't throw if not logged in
+ * Includes user/business when available
  */
-export const optionalAuthMutation = customMutation(mutation, {
+export const optionalAuthenticatedQuery = customQuery(query, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx); // 👈 Safe version
 
-    return {
-      ctx: { ...ctx, user },
-      args: {},
-    };
+    let businesses: Doc<"businesses">[] = [];
+    let business: Doc<"businesses"> | null = null;
+
+    if (user) {
+      businesses = await getUserBusinesses(ctx, user._id);
+      business = businesses.length === 1 ? businesses[0] : null;
+    }
+
+    return { ctx: { ...ctx, user, business, businesses }, args };
   },
 });
 
 /**
- * Type definitions for the enhanced context
+ * 🟢 Optional Auth Mutation: Doesn't throw if not logged in
+ * Includes user/business when available
+ */
+export const optionalAuthenticatedMutation = customMutation(mutation, {
+  args: {},
+  input: async (ctx, args) => {
+    const user = await tryGetAuthenticatedUser(ctx); // 👈 Safe version
+
+    let businesses: Doc<"businesses">[] = [];
+    let business: Doc<"businesses"> | null = null;
+
+    if (user) {
+      businesses = await getUserBusinesses(ctx, user._id);
+      business = businesses.length === 1 ? businesses[0] : null;
+    }
+
+    return { ctx: { ...ctx, user, business, businesses }, args };
+  },
+});
+
+/**
+ * 🧠 Enhanced Context Types
  */
 export type AuthenticatedQueryCtx = QueryCtx & {
   user: Doc<"users">;
-};
-
-export type OptionalAuthQueryCtx = QueryCtx & {
-  user: Doc<"users"> | null;
+  business?: Doc<"businesses"> | null;
+  businesses?: Doc<"businesses">[];
 };
 
 export type AuthenticatedMutationCtx = MutationCtx & {
   user: Doc<"users">;
+  business?: Doc<"businesses"> | null;
+  businesses?: Doc<"businesses">[];
+};
+
+export type OptionalAuthQueryCtx = QueryCtx & {
+  user?: Doc<"users"> | null;
+  business?: Doc<"businesses"> | null;
+  businesses?: Doc<"businesses">[];
 };
 
 export type OptionalAuthMutationCtx = MutationCtx & {
-  user: Doc<"users"> | null;
+  user?: Doc<"users"> | null;
+  business?: Doc<"businesses"> | null;
+  businesses?: Doc<"businesses">[];
 };

@@ -1,8 +1,6 @@
 import CustomTabBar from "@/components/tabs/CustomTabBar";
 import { Fonts } from "@/constants/Fonts";
-import { api } from "@/convex/_generated/api";
 import { BottomTabNavigationOptions } from "@react-navigation/bottom-tabs";
-import { useQuery } from "convex/react";
 import { Tabs } from "expo-router";
 import React, { createContext } from "react";
 import * as IconsOutline from "react-native-heroicons/outline";
@@ -25,11 +23,6 @@ export const TabScrollYContext = createContext<any>(null);
 const TabsLayout = () => {
   const { theme } = useUnistyles();
   const scrollY = useSharedValue(0);
-
-  // Get notification count for badge
-  const notificationCount = useQuery(
-    api.notifications.getUserNotificationsUnreadCount
-  );
 
   const NAV_ITEMS: NavItem[] = [
     {

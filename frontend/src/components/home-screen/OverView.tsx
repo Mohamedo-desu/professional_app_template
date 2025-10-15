@@ -1,38 +1,53 @@
 import { ELEVATION } from "@/constants/device";
-import { useDailyEntryStore } from "@/store/useDailyEntry";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { shortenNumber } from "@/utils/functions";
+import { useMutation } from "convex/react";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import { BADGE_COLOR, PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
+import {
+  BADGE_COLOR,
+  PRIMARY_COLOR,
+  SECONDARY_COLOR,
+  TERTIARY_COLOR,
+} from "unistyles";
 import CustomButton from "../common/CustomButton";
 import CustomText from "../common/CustomText";
 
-const OverView = () => {
-  const { currentEntry } = useDailyEntryStore();
-  const totalSales =
-    currentEntry?.sales?.reduce((sum, s) => sum + (s.total || 0), 0) || 0;
-  const totalDebts =
-    currentEntry?.debts?.reduce((sum, d) => sum + (d.totalOwed || 0), 0) || 0;
+type OverViewProps = {
+  summary?: {
+    cash: number;
+    mpesa: number;
+    sales: number;
+    profit: number;
+  } | null;
+  isClosed?: boolean;
+  todayEntryId: Id<"dailyEntries">;
+};
 
-  const profit = totalSales - totalDebts;
-
+const OverView = ({ summary, isClosed, todayEntryId }: OverViewProps) => {
   const CONTAINER_ITEMS = useMemo(
     () => [
-      {
-        id: "1",
-        title: "Total Sales",
-        amount: 10000,
-      },
-      {
-        id: "2",
-        title: "Profit",
-        amount: 5200,
-      },
+      { id: "1", title: "Cash Sales", amount: summary?.cash || 0 },
+      { id: "2", title: "M-Pesa Sales", amount: summary?.mpesa || 0 },
+      { id: "3", title: "Total Sales", amount: summary?.sales || 0 },
+      { id: "4", title: "Profit", amount: summary?.profit || 0 },
     ],
-    []
+    [summary]
   );
+
+  const closeTodayEntry = useMutation(api.dailyEntries.closeEntry);
+  const reopenTodayEntry = useMutation(api.dailyEntries.reopenEntry);
+
+  const handleClose = async () => {
+    await closeTodayEntry({ entryId: todayEntryId });
+  };
+
+  const handleReopen = async () => {
+    await reopenTodayEntry({ entryId: todayEntryId });
+  };
 
   return (
     <View style={styles.OverviewWrapper}>
@@ -42,27 +57,28 @@ const OverView = () => {
         end={{ x: 0, y: 1 }}
         style={styles.container}
       >
-        {CONTAINER_ITEMS.map((item) => {
-          return (
-            <View key={item.id} style={styles.card}>
-              <CustomText variant="subtitle2" semibold>
-                {item.title}
-              </CustomText>
-              <CustomText
-                variant="headline"
-                bold
-                color={item.id === "2" ? "success" : "primary"}
-              >
-                {shortenNumber(item.amount)}
-              </CustomText>
-            </View>
-          );
-        })}
+        {CONTAINER_ITEMS.map((item) => (
+          <View key={item.id} style={styles.card}>
+            <CustomText variant="subtitle2" semibold>
+              {item.title}
+            </CustomText>
+            <CustomText
+              variant="headline"
+              bold
+              color={item.id === "4" ? "success" : "primary"}
+            >
+              {shortenNumber(item.amount)}
+            </CustomText>
+          </View>
+        ))}
       </LinearGradient>
+
       <CustomButton
-        text={"Close For Today"}
-        onPress={() => undefined}
-        style={{ backgroundColor: BADGE_COLOR }}
+        text={isClosed ? "Reopen Day" : "Close For Today"}
+        onPress={isClosed ? handleReopen : handleClose}
+        style={{
+          backgroundColor: isClosed ? BADGE_COLOR : SECONDARY_COLOR,
+        }}
       />
     </View>
   );
@@ -76,23 +92,24 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.gap(1),
   },
   container: {
+    flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "space-between",
     backgroundColor: theme.colors.surface,
     gap: theme.gap(2),
     borderRadius: theme.radii.regular,
     padding: theme.paddingHorizontal,
-    height: theme.gap(30),
+    minHeight: theme.gap(25),
     elevation: ELEVATION,
     borderWidth: 1,
     borderColor: theme.colors.tertiary + "22",
     borderCurve: "circular",
   },
   card: {
-    flex: 1,
+    flexBasis: "48%",
     backgroundColor: theme.colors.background,
     borderRadius: theme.radii.regular,
-    paddingHorizontal: theme.paddingHorizontal,
-    width: "100%",
+    paddingVertical: theme.gap(2),
     justifyContent: "center",
     alignItems: "center",
   },

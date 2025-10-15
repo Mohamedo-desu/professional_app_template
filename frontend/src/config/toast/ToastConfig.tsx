@@ -75,7 +75,7 @@ const warningToastStyles = StyleSheet.create((theme) => ({
 const BaseToastStyles = StyleSheet.create((theme) => ({
   contentContainerStyle: {
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 20,
   },
 }));
 

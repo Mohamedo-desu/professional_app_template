@@ -75,7 +75,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({
           style={styles.fabContainer}
         >
           <TouchableOpacity
-            onPress={() => router.navigate("/(main)/add")}
+            onPress={() => router.navigate("/(main)/Search")}
             activeOpacity={0.8}
             style={styles.fab}
           >

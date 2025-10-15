@@ -11,14 +11,26 @@ import {
 /**
  * Creates a user record in the database if not already existing.
  */
+
+export const todayKey = () => {
+  const today = new Date();
+  const todayKey = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  ).getTime();
+  return todayKey;
+};
+
 export const createUser = internalMutation({
   args: {
-    userName: v.string(),
+    fullName: v.string(),
     emailAddress: v.string(),
     clerkId: v.string(),
     imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // 1️⃣ Check if user already exists
     const existingUser = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
@@ -32,44 +44,81 @@ export const createUser = internalMutation({
       });
     }
 
-    await ctx.db.insert("users", {
-      userName: args.userName,
+    // 2️⃣ Create user
+    const userId = await ctx.db.insert("users", {
+      fullName: args.fullName,
       emailAddress: args.emailAddress,
       clerkId: args.clerkId,
       imageUrl: args.imageUrl,
+      businessIds: [],
     });
 
-    return { success: true, message: "User created successfully." };
+    // 3️⃣ Create default business for user
+    const businessName = `${args.fullName.split(" ")[0]}'s Business`;
+
+    const businessId = await ctx.db.insert("businesses", {
+      ownerId: userId,
+      name: businessName,
+      location: "Nairobi,Kenya",
+    });
+
+    // 4️⃣ Update user's businessIds to include the new business
+    await ctx.db.patch(userId, {
+      businessIds: [businessId],
+    });
+
+    // 4️⃣ Optionally, create first "daily entry" for today
+
+    await ctx.db.insert("dailyEntries", {
+      businessId,
+      date: todayKey(),
+      closed: false,
+      cashTotal: 0,
+      mpesaTotal: 0,
+      salesTotal: 0,
+      debtsTotal: 0,
+      profitTotal: 0,
+      closedAt: 0,
+    });
+
+    // 5️⃣ Send system notification (optional)
+    await ctx.db.insert("notifications", {
+      businessId,
+      userId,
+      type: "system",
+      title: "Business Initialized",
+      message: `Welcome ${args.fullName}! Your business "${businessName}" has been created automatically.`,
+      isRead: false,
+    });
+
+    return {
+      success: true,
+      message: "User and business created successfully.",
+      userId,
+      businessId,
+    };
   },
 });
 
 /**
- * Gets the authenticated user from Convex Auth context.
+ * 🟢 Safe version of getAuthenticatedUser
+ * Returns `null` instead of throwing when unauthenticated.
  */
-export const getAuthenticatedUser = async (ctx: QueryCtx | MutationCtx) => {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new ConvexError({
-      code: "UNAUTHORIZED",
-      message: "User is not authenticated.",
-      hint: "Ensure the user is signed in before calling this function.",
-    });
+export const tryGetAuthenticatedUser = async (ctx: QueryCtx | MutationCtx) => {
+  try {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const currentUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    return currentUser ?? null;
+  } catch (err) {
+    // Ignore ConvexError or missing identity cases
+    return null;
   }
-
-  const currentUser = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .unique();
-
-  if (!currentUser) {
-    throw new ConvexError({
-      code: "USER_NOT_FOUND",
-      message: "Authenticated user record not found.",
-      hint: "User may not have been created in Convex yet.",
-    });
-  }
-
-  return currentUser;
 };
 
 /**

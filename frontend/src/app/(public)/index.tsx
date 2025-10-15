@@ -1,0 +1,296 @@
+import CustomButton from "@/components/common/CustomButton";
+import CustomText from "@/components/common/CustomText";
+import Input from "@/components/common/Input";
+import ScreenAppBar from "@/components/common/ScreenAppBar";
+import { showToast } from "@/config/toast/ShowToast";
+import { ELEVATION } from "@/constants/device";
+import { useSignIn, useSSO } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Linking from "expo-linking";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import {
+  ActivityIndicator,
+  Keyboard,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { StyleSheet } from "react-native-unistyles";
+import { PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
+import z from "zod/v3";
+
+export const schema = z.object({
+  email: z.string().email("Enter a valid email"),
+  password: z
+    .string()
+    .min(6, { message: "Password is required (min 6 chars)" }),
+});
+
+export type LoginFormData = z.infer<typeof schema>;
+
+const LoginScreen = () => {
+  const { startSSOFlow } = useSSO();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(schema),
+    mode: "onChange",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    try {
+      if (!isLoaded) return;
+
+      Keyboard.dismiss();
+
+      const { email, password } = data;
+
+      const signInAttempt = await signIn.create({
+        identifier: email,
+        password,
+      });
+
+      if (signInAttempt.status === "complete") {
+        await setActive({ session: signInAttempt.createdSessionId });
+        showToast("success", "LOGIN SUCCESS", "Welcome back!");
+      } else {
+        console.error(JSON.stringify(signInAttempt, null, 2));
+        showToast("error", "LOGIN FAILED", "Check your credentials.");
+      }
+    } catch (error: any) {
+      console.log("Login error", error);
+      showToast("error", "LOGIN FAILED", error?.message || "Unknown error");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      const redirectUrl = Linking.createURL("/(main)/(tabs)");
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy: "oauth_google",
+        redirectUrl,
+      });
+      if (setActive && createdSessionId) {
+        setActive({ session: createdSessionId });
+        showToast("success", "LOGIN SUCCESS", "Signed in with Google");
+      }
+    } catch (error: any) {
+      console.error("OAuth error", error);
+      showToast(
+        "error",
+        "LOGIN FAILED",
+        error?.message || "An error occurred during Google sign-in"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAwareScrollView
+      enableOnAndroid
+      enableAutomaticScroll
+      style={styles.screen}
+      contentContainerStyle={styles.contentContainerStyle}
+      keyboardShouldPersistTaps="handled"
+    >
+      <ScreenAppBar title="Please Login" showGoBack={false} />
+      <View style={styles.body}>
+        <LinearGradient
+          colors={[TERTIARY_COLOR, PRIMARY_COLOR]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.container}
+        >
+          <Input
+            label="Email"
+            control={control}
+            errors={errors.email}
+            name="email"
+            placeholder="johndoe@gmail.com"
+          />
+          <Input
+            label="Password"
+            control={control}
+            errors={errors.password}
+            name="password"
+            placeholder="••••••••"
+            secureTextEntry
+          />
+
+          <CustomButton
+            text={isSubmitting ? "Logging in..." : "Login"}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isSubmitting || isLoading}
+          />
+
+          <CustomText variant="subtitle2" color="onPrimary" textAlign="center">
+            Or
+          </CustomText>
+
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            activeOpacity={0.85}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color={PRIMARY_COLOR} />
+            ) : (
+              <View style={styles.gRow}>
+                <Ionicons name="logo-google" size={18} color="white" />
+                <CustomText
+                  variant="button"
+                  textAlign="center"
+                  color="onPrimary"
+                  style={{ marginLeft: 8 }}
+                >
+                  Continue with Google
+                </CustomText>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.footer}>
+            <TouchableOpacity
+              onPress={() => router.navigate("/(public)/signup")}
+              activeOpacity={0.8}
+            >
+              <CustomText variant="label" color="onPrimary" textAlign="center">
+                Don&apos;t have an account?
+              </CustomText>
+
+              <CustomText
+                variant="label"
+                color="onPrimary"
+                textAlign="center"
+                style={{ marginLeft: 4 }}
+              >
+                Sign up
+              </CustomText>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+        <LinearGradient
+          colors={[PRIMARY_COLOR, TERTIARY_COLOR]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.container}
+        >
+          <CustomText
+            variant="label"
+            color="onPrimary"
+            textAlign="center"
+            style={{ flexWrap: "wrap" }}
+          >
+            By continuing, you agree to our{" "}
+          </CustomText>
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => router.navigate("/(public)/terms")}
+              activeOpacity={0.8}
+            >
+              <CustomText
+                variant="label"
+                color="onPrimary"
+                style={{ textDecorationLine: "underline" }}
+              >
+                Terms of Service
+              </CustomText>
+            </TouchableOpacity>
+
+            <CustomText variant="label" color="onPrimary">
+              {" "}
+              and{" "}
+            </CustomText>
+
+            <TouchableOpacity
+              onPress={() => router.navigate("/(public)/privacy")}
+              activeOpacity={0.8}
+            >
+              <CustomText
+                variant="label"
+                color="onPrimary"
+                style={{ textDecorationLine: "underline" }}
+              >
+                Privacy Policy
+              </CustomText>
+            </TouchableOpacity>
+          </View>
+
+          <CustomText
+            variant="caption"
+            color="onPrimary"
+            textAlign="center"
+            style={{ marginTop: 6 }}
+          >
+            App Version 1.0.0
+          </CustomText>
+        </LinearGradient>
+      </View>
+    </KeyboardAwareScrollView>
+  );
+};
+
+export default LoginScreen;
+
+const styles = StyleSheet.create((theme) => ({
+  screen: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  contentContainerStyle: {
+    flex: 1,
+    flexGrow: 1,
+  },
+  body: {
+    flex: 1,
+    padding: theme.paddingHorizontal,
+    gap: theme.gap(5),
+  },
+  container: {
+    padding: theme.paddingHorizontal,
+    borderRadius: theme.radii.regular,
+    elevation: ELEVATION,
+    gap: theme.gap(3),
+  },
+  googleButton: {
+    borderRadius: theme.radii.regular,
+    backgroundColor: theme.colors.secondary,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    height: theme.gap(10),
+  },
+  gRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: theme.gap(4),
+  },
+}));

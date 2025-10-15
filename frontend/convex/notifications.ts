@@ -2,15 +2,11 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
-import {
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-} from "./_generated/server";
-import { getAuthenticatedUser } from "./users";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { authenticatedMutation, authenticatedQuery } from "./customFunctions";
+import { tryGetAuthenticatedUser } from "./users";
 
-export const registerPushToken = mutation({
+export const registerPushToken = authenticatedMutation({
   args: {
     pushToken: v.string(),
     deviceId: v.string(), // Only deviceId for consistency
@@ -18,7 +14,7 @@ export const registerPushToken = mutation({
   },
   handler: async (ctx, args) => {
     const { pushToken, deviceId, timestamp } = args;
-    const authenticatedUser = await getAuthenticatedUser(ctx);
+    const authenticatedUser = await tryGetAuthenticatedUser(ctx);
 
     // Validate required fields
     if (!pushToken || !deviceId) {
@@ -66,7 +62,7 @@ export const registerPushToken = mutation({
     };
   },
 });
-export const unregisterPushToken = mutation({
+export const unregisterPushToken = authenticatedMutation({
   args: {
     deviceId: v.string(),
   },
@@ -113,11 +109,26 @@ export const createNotification = internalMutation({
   args: {
     userId: v.id("users"),
     senderId: v.optional(v.id("users")),
-    type: v.union(v.literal("account_warning"), v.literal("system")),
+    type: v.union(
+      v.literal("system"), // app/system notifications
+      v.literal("stock_alert"), // low or out-of-stock alerts
+      v.literal("payment_alert"), // payment confirmations (cash/mpesa)
+      v.literal("debt_reminder"), // customer owes payment
+      v.literal("daily_summary"), // end-of-day or profit summary
+      v.literal("info") // general informational messages
+    ),
     title: v.string(),
     message: v.string(),
     entityId: v.optional(v.string()),
-    entityType: v.optional(v.union(v.literal("post"), v.literal("comment"))),
+    entityType: v.optional(
+      v.union(
+        v.literal("sale"),
+        v.literal("inventory"),
+        v.literal("customer"),
+        v.literal("debt"),
+        v.literal("payment")
+      )
+    ),
     metadata: v.optional(v.any()),
   },
   handler: async (
@@ -136,7 +147,6 @@ export const createNotification = internalMutation({
       // Create in-app notification
       const notificationId = await ctx.db.insert("notifications", {
         userId: args.userId,
-        senderId: args.senderId,
         type: args.type,
         title: args.title,
         message: args.message,
@@ -231,7 +241,7 @@ export const createNotification = internalMutation({
     }
   },
 });
-export const getUserNotificationsUnreadCount = query({
+export const getUserNotificationsUnreadCount = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -258,7 +268,7 @@ export const getUserNotificationsUnreadCount = query({
     return unreadCount.length;
   },
 });
-export const getUserNotifications = query({
+export const getUserNotifications = authenticatedQuery({
   args: {
     paginationOpts: paginationOptsValidator,
   },
@@ -283,35 +293,14 @@ export const getUserNotifications = query({
       .order("desc")
       .paginate(args.paginationOpts);
 
-    // Enrich notifications with sender information
-    const enrichedNotifications = await Promise.all(
-      result.page.map(async (notification) => {
-        let sender = null;
-        if (notification.senderId) {
-          sender = await ctx.db.get(notification.senderId);
-        }
-
-        return {
-          ...notification,
-          sender: sender
-            ? {
-                _id: sender._id,
-                userName: sender.userName,
-                imageUrl: sender.imageUrl,
-              }
-            : null,
-        };
-      })
-    );
-
     return {
       ...result,
-      page: enrichedNotifications,
+      page: result.page,
       continueCursor: result.continueCursor || "",
     };
   },
 });
-export const markUserNotificationAsRead = mutation({
+export const markUserNotificationAsRead = authenticatedMutation({
   args: {
     notificationId: v.id("notifications"),
   },
@@ -346,7 +335,7 @@ export const markUserNotificationAsRead = mutation({
     });
   },
 });
-export const markAllUserNotificationAsRead = mutation({
+export const markAllUserNotificationAsRead = authenticatedMutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -382,7 +371,7 @@ export const markAllUserNotificationAsRead = mutation({
     return unreadNotifications.length;
   },
 });
-export const deleteUserNotification = mutation({
+export const deleteUserNotification = authenticatedMutation({
   args: {
     notificationId: v.id("notifications"),
   },

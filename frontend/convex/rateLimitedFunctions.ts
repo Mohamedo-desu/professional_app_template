@@ -6,7 +6,7 @@ import { ConvexError } from "convex/values";
 import { Doc } from "./_generated/dataModel";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server";
 import { checkRateLimit, rateLimit } from "./rateLimits";
-import { getAuthenticatedUser } from "./users";
+import { tryGetAuthenticatedUser } from "./users";
 
 /**
  * 🧩 Helper: Throws a consistent ConvexError for unauthenticated users
@@ -36,7 +36,7 @@ function rateLimitError(retryAt?: number) {
 export const rateLimitedAuthMutationHigh = customMutation(mutation, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     if (!user) requireAuthError();
 
     return { ctx: { ...ctx, user }, args: {} };
@@ -49,13 +49,13 @@ export const rateLimitedAuthMutationHigh = customMutation(mutation, {
 export const rateLimitedAuthMutationMedium = customMutation(mutation, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     if (!user) requireAuthError();
 
     try {
       await rateLimit(ctx, {
         name: "createContent",
-        key: user._id,
+        key: user?._id,
         throws: true,
       });
     } catch (err: any) {
@@ -72,13 +72,13 @@ export const rateLimitedAuthMutationMedium = customMutation(mutation, {
 export const rateLimitedAuthMutationLow = customMutation(mutation, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     if (!user) requireAuthError();
 
     try {
       await rateLimit(ctx, {
         name: "heavyAction",
-        key: user._id,
+        key: user?._id,
         throws: true,
       });
     } catch (err: any) {
@@ -95,13 +95,13 @@ export const rateLimitedAuthMutationLow = customMutation(mutation, {
 export const rateLimitedAuthMutationAccount = customMutation(mutation, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     if (!user) requireAuthError();
 
     try {
       await rateLimit(ctx, {
         name: "accountAction",
-        key: user._id,
+        key: user?._id,
         throws: true,
       });
     } catch (err: any) {
@@ -118,7 +118,7 @@ export const rateLimitedAuthMutationAccount = customMutation(mutation, {
 export const rateLimitedOptionalAuthQuery = customQuery(query, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
     const rateLimitKey = user?._id || "global";
 
     const { ok, retryAt } = await checkRateLimit(ctx, {
@@ -138,7 +138,7 @@ export const rateLimitedOptionalAuthQuery = customQuery(query, {
 export const rateLimitedPublicQuery = customQuery(query, {
   args: {},
   input: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
+    const user = await tryGetAuthenticatedUser(ctx);
 
     const { ok, retryAt } = await checkRateLimit(ctx, {
       name: "publicQuery",
