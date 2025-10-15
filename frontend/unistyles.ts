@@ -9,6 +9,7 @@ export const PRIMARY_COLOR = "#4b22df"; // deep purple for mystery & trust
 export const SECONDARY_COLOR = "#ff9650"; // coral accent for emotion & warmth
 export const TERTIARY_COLOR = "#219ff3"; // friendly blue for calm balance
 export const BADGE_COLOR = "#E53935"; // vivid red for alerts/urgent badges
+export const SUCCESS_COLOR = "#388E3C"; // vivid red for alerts/urgent badges
 
 export const Colors = {
   primary: PRIMARY_COLOR,

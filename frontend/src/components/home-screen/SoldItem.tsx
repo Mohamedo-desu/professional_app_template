@@ -1,14 +1,42 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Image, Modal, TouchableOpacity, View } from "react-native";
+import * as z from "zod";
+
+import CustomButton from "@/components/common/CustomButton";
 import CustomText from "@/components/common/CustomText";
+import Input from "@/components/common/Input";
+import { showToast } from "@/config/toast/ShowToast";
 import { ELEVATION } from "@/constants/device";
+import { Fonts } from "@/constants/Fonts";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { shortenNumber } from "@/utils/functions";
+import { capitalizeWords, shortenNumber } from "@/utils/functions";
 import { useMutation } from "convex/react";
-import React, { useState } from "react";
-import { Image, Modal, TouchableOpacity, View } from "react-native";
+import { XCircleIcon } from "react-native-heroicons/solid";
 import { StyleSheet } from "react-native-unistyles";
-import { BADGE_COLOR, PRIMARY_COLOR } from "unistyles";
-import CustomButton from "../common/CustomButton";
+import {
+  BADGE_COLOR,
+  PRIMARY_COLOR,
+  SECONDARY_COLOR,
+  TERTIARY_COLOR,
+} from "unistyles";
+
+// ✅ Schema for updating sold quantity
+const soldItemSchema = z.object({
+  quantity: z
+    .string()
+    .min(1, "Quantity is required")
+    .refine(
+      (val) => !isNaN(Number(val)) && Number(val) > 0,
+      "Must be a valid number > 0"
+    ),
+  paymentMethod: z.enum(["cash", "mpesa"]),
+});
+
+export type SoldFormData = z.infer<typeof soldItemSchema>;
 
 type SoldItemProps = {
   item: {
@@ -22,168 +50,145 @@ type SoldItemProps = {
     totalProfit: number;
     imageUrl?: string;
   };
-  onSaleChanged?: () => void; // optional callback to refresh parent list
 };
 
-const SoldItem: React.FC<SoldItemProps> = ({ item, onSaleChanged }) => {
-  const [showModal, setShowModal] = useState(false);
-  const [quantity, setQuantity] = useState(item.quantitySold);
-
+const SoldItem: React.FC<SoldItemProps> = ({ item }) => {
+  const [modalVisible, setModalVisible] = useState(false);
   const addSaleForToday = useMutation(api.dailyEntries.addSaleForToday);
-  const decrementSale = useMutation(api.dailyEntries.decrementSale);
   const deleteSale = useMutation(api.dailyEntries.deleteSale);
 
-  const handleIncrement = () => setQuantity((prev) => prev + 1);
-  const handleDecrement = () =>
-    setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+  const handleDeleteItem = async () => {
+    await deleteSale({
+      saleId: item._id as Id<"sales">,
+    });
+  };
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<SoldFormData>({
+    resolver: zodResolver(soldItemSchema),
+    defaultValues: {
+      quantity: String(item.quantitySold),
+      paymentMethod: item.paymentMethod,
+    },
+  });
 
-  const handleAdd = async () => {
+  const onSubmit = async (data: SoldFormData) => {
     try {
       if (!item.inventoryId) throw new Error("Inventory ID is missing.");
 
       await addSaleForToday({
         inventoryId: item.inventoryId as Id<"inventory">,
-        quantity,
-        paymentMethod: item.paymentMethod,
+        quantity: Number(data.quantity),
+        paymentMethod: data.paymentMethod,
       });
 
-      setQuantity(item.quantitySold); // reset after server update
-      setShowModal(false);
-      onSaleChanged?.();
-    } catch (err: any) {
-      console.error("Failed to add sale:", err);
-    }
-  };
-
-  const handleDecrementServer = async () => {
-    try {
-      await decrementSale({
-        saleId: item._id as Id<"sales">,
-        quantity: 1, // decrement by 1
-      });
-
-      setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
-      onSaleChanged?.();
-    } catch (err: any) {
-      console.error("Failed to decrement sale:", err);
-    }
-  };
-
-  const handleDeleteServer = async () => {
-    try {
-      await deleteSale({ saleId: item._id as Id<"sales"> });
-      setShowModal(false);
-      onSaleChanged?.();
-    } catch (err: any) {
-      console.error("Failed to delete sale:", err);
+      showToast("success", "SUCCESS", "Sale updated successfully!");
+      setModalVisible(false);
+      reset();
+    } catch (error: any) {
+      console.error("Failed to add sale:", error);
+      showToast("error", "FAILED", error?.message || "Something went wrong.");
     }
   };
 
   return (
     <>
-      <TouchableOpacity
+      {/* 💵 Sold Item Card */}
+      <LinearGradient
+        colors={["#FFFFFF", "#EDEDED"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
         style={styles.container}
-        activeOpacity={0.8}
-        onLongPress={() => setShowModal(true)}
       >
-        <Image
-          source={{
-            uri:
-              item.imageUrl ||
-              "https://via.placeholder.com/60x60.png?text=Item",
-          }}
-          style={styles.image}
-        />
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.8}
+          onLongPress={() => setModalVisible(true)}
+        >
+          <Image
+            source={{
+              uri:
+                item.imageUrl ||
+                "https://via.placeholder.com/60x60.png?text=Item",
+            }}
+            style={styles.image}
+          />
 
-        <View style={styles.details}>
-          <CustomText variant="subtitle2" bold numberOfLines={2}>
-            {item.itemName}
-          </CustomText>
-
-          <View style={styles.row}>
-            <CustomText variant="body2" bold color="success">
-              {shortenNumber(item.totalAmount)}
-            </CustomText>
-            <CustomText variant="small" color="tertiary">
-              × {quantity}
-            </CustomText>
-          </View>
-          <CustomText variant="label" bold color="secondary">
-            {item.paymentMethod.toUpperCase()}
-          </CustomText>
-        </View>
-      </TouchableOpacity>
-
-      {/* ===== MODAL ===== */}
-      <Modal transparent visible={showModal} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <Image
-              source={{
-                uri:
-                  item.imageUrl ||
-                  "https://via.placeholder.com/60x60.png?text=Item",
-              }}
-              style={styles.modalImage}
-            />
-
-            <CustomText variant="subtitle1" bold numberOfLines={2}>
-              {item.itemName}
+          <View style={styles.details}>
+            <CustomText
+              variant="subtitle2"
+              bold
+              numberOfLines={2}
+              color="primary"
+            >
+              {capitalizeWords(item.itemName)}
             </CustomText>
 
-            <CustomText variant="h2" bold color="success">
-              {shortenNumber(item.totalAmount)}
-            </CustomText>
-
-            {/* Quantity Counter */}
-            <View style={styles.counterContainer}>
-              <TouchableOpacity
-                style={styles.counterButton}
-                onPress={handleDecrement}
-              >
-                <CustomText variant="h2" bold>
-                  −
-                </CustomText>
-              </TouchableOpacity>
-
-              <CustomText variant="h2" bold>
-                {quantity}
+            <View style={styles.row}>
+              <CustomText variant="body1" bold color="success">
+                {shortenNumber(item.totalAmount)}
               </CustomText>
-
-              <TouchableOpacity
-                style={styles.counterButton}
-                onPress={handleIncrement}
-              >
-                <CustomText variant="h2" bold>
-                  +
-                </CustomText>
-              </TouchableOpacity>
+              <CustomText variant="small" color="tertiary">
+                × {item.quantitySold}
+              </CustomText>
             </View>
-
-            <CustomButton
-              text="Add/Update Sale"
-              onPress={handleAdd}
-              style={{ backgroundColor: PRIMARY_COLOR }}
-            />
-            <CustomButton
-              text="Decrement Sale"
-              onPress={handleDecrementServer}
-              style={{ backgroundColor: "#FFA500" }}
-            />
-            <CustomButton
-              text="Delete Sale"
-              onPress={handleDeleteServer}
-              style={{ backgroundColor: "#FF4D4D" }}
-            />
-            <CustomButton
-              text="Cancel"
-              onPress={() => {
-                setQuantity(item.quantitySold);
-                setShowModal(false);
-              }}
-              style={{ backgroundColor: BADGE_COLOR }}
-            />
+            <CustomText variant="label" bold color="secondary">
+              {item.paymentMethod.toUpperCase()}
+            </CustomText>
           </View>
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* 🧾 Update Sale Modal */}
+      <Modal transparent visible={modalVisible} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <LinearGradient
+            colors={[PRIMARY_COLOR, TERTIARY_COLOR]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.modal}
+          >
+            <TouchableOpacity
+              style={{ alignSelf: "flex-end" }}
+              onPress={() => {
+                setModalVisible(false);
+                reset();
+              }}
+            >
+              <XCircleIcon size={24} color={BADGE_COLOR} />
+            </TouchableOpacity>
+            <CustomText variant="title" bold color="onPrimary">
+              Update Sale - {capitalizeWords(item.itemName)}
+            </CustomText>
+
+            {/* Quantity Field */}
+            <Input
+              control={control}
+              name="quantity"
+              label="Quantity"
+              placeholder="Enter quantity"
+              errors={errors.quantity}
+              keyboardType="number-pad"
+              style={{ fontSize: 16, fontFamily: Fonts.SemiBold }}
+            />
+
+            {/* Actions */}
+            <View style={styles.modalActions}>
+              <CustomButton
+                text="Save Changes"
+                onPress={handleSubmit(onSubmit)}
+                style={{ backgroundColor: SECONDARY_COLOR }}
+              />
+              <CustomButton
+                text="Delete This Item"
+                style={{ backgroundColor: BADGE_COLOR }}
+                onPress={handleDeleteItem}
+              />
+            </View>
+          </LinearGradient>
         </View>
       </Modal>
     </>
@@ -194,16 +199,17 @@ export default SoldItem;
 
 const styles = StyleSheet.create((theme) => ({
   container: {
-    flexDirection: "row",
-    backgroundColor: theme.colors.surface,
     borderRadius: theme.radii.regular,
-    alignItems: "center",
-    gap: theme.gap(1.5),
     height: theme.gap(20),
-    padding: theme.paddingHorizontal,
     elevation: ELEVATION,
     borderWidth: 1,
     borderColor: theme.colors.grey300,
+  },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.gap(1.5),
+    padding: theme.paddingHorizontal,
   },
   image: {
     height: "100%",
@@ -233,30 +239,26 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.paddingHorizontal,
     elevation: ELEVATION,
     width: "100%",
-    justifyContent: "space-around",
-    alignItems: "center",
-    gap: theme.gap(1),
+    gap: theme.gap(3),
   },
-  modalImage: {
-    width: "100%",
-    height: "20%",
-    borderRadius: theme.radii.small,
-    backgroundColor: theme.colors.background,
-  },
-  counterContainer: {
+  paymentOptions: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.gap(10),
-    marginVertical: theme.gap(1),
+    gap: theme.gap(1),
+    marginTop: theme.gap(2),
   },
-  counterButton: {
+  paymentButton: {
     flex: 1,
-    height: theme.gap(10),
+    borderWidth: 1,
+    borderColor: theme.colors.grey300,
     borderRadius: theme.radii.regular,
+    padding: theme.paddingHorizontal,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.grey200,
-    elevation: ELEVATION,
+  },
+  paymentButtonActive: {
+    backgroundColor: theme.colors.onPrimary,
+  },
+  modalActions: {
+    marginTop: theme.gap(5),
+    gap: theme.gap(1),
   },
 }));

@@ -31,7 +31,7 @@ export const startNewDay = authenticatedMutation({
   handler: async (ctx) => {
     if (!ctx.business)
       throw new ConvexError("No active business found for this user.");
-    const businessId = ctx.business._id;
+    const businessId = ctx.business!._id;
 
     // 3️⃣ Check if entry for today already exists
     const existing = await ctx.db
@@ -90,33 +90,38 @@ export const closeEntry = authenticatedMutation({
 
     if (entry.closed) throw new ConvexError("Entry already closed.");
 
-    // 🧮 1. Fetch all sales linked to this entry
+    // 🧮 1️⃣ Fetch all sales linked to this entry
     const sales = await ctx.db
       .query("sales")
       .withIndex("by_daily_entry", (q) => q.eq("dailyEntryId", entryId))
       .collect();
 
-    // 🧾 2. Compute totals by payment type
+    // 🧾 2️⃣ Compute totals (exclude debts from paid totals)
     let cashTotal = 0;
     let mpesaTotal = 0;
     let salesTotal = 0;
     let profitTotal = 0;
+    let debtsTotal = 0;
 
     for (const sale of sales) {
       const amount = sale.totalAmount || 0;
       const profit = sale.totalProfit || 0;
 
-      salesTotal += amount;
-      profitTotal += profit;
-
       if (sale.paymentMethod === "cash") {
         cashTotal += amount;
+        salesTotal += amount;
+        profitTotal += profit;
       } else if (sale.paymentMethod === "mpesa") {
         mpesaTotal += amount;
+        salesTotal += amount;
+        profitTotal += profit;
+      } else if (sale.paymentMethod === "debt") {
+        // 💰 Track debts separately
+        debtsTotal += amount;
       }
     }
 
-    // 🧩 3. Patch the entry with recalculated values
+    // 🧩 3️⃣ Patch entry with recalculated totals
     await ctx.db.patch(entryId, {
       closed: true,
       closedAt: Date.now(),
@@ -124,20 +129,27 @@ export const closeEntry = authenticatedMutation({
       mpesaTotal,
       salesTotal,
       profitTotal,
+      debtsTotal,
     });
 
-    // 🔔 4. Optional: Send a notification with end-of-day summary
+    // 🔔 4️⃣ Send notification summary
     await ctx.db.insert("notifications", {
-      businessId: ctx.business._id,
+      businessId: ctx.business!._id,
       userId: ctx.user._id,
       type: "daily_summary",
       title: "Day Closed Successfully",
       message: `Business day closed on ${new Date(entry.date).toDateString()}.`,
       isRead: false,
       metadata: {
-        totals: { cashTotal, mpesaTotal, salesTotal, profitTotal },
+        totals: { cashTotal, mpesaTotal, salesTotal, profitTotal, debtsTotal },
       },
     });
+
+    return {
+      success: true,
+      message:
+        "Daily entry closed successfully. Debt sales included separately.",
+    };
   },
 });
 
@@ -154,7 +166,7 @@ export const reopenEntry = authenticatedMutation({
     if (!entry) throw new Error("Daily entry not found.");
 
     // 2️⃣ Check ownership
-    if (entry.businessId !== ctx.business._id) {
+    if (entry.businessId !== ctx.business!._id) {
       throw new Error("Unauthorized: entry does not belong to your business.");
     }
 
@@ -171,7 +183,7 @@ export const reopenEntry = authenticatedMutation({
 
     // 5️⃣ Optional: send system notification
     await ctx.db.insert("notifications", {
-      businessId: ctx.business._id,
+      businessId: ctx.business!._id,
       userId: ctx.user._id,
       type: "system",
       title: "Daily Entry Reopened",
@@ -224,9 +236,17 @@ export const addSaleForToday = authenticatedMutation({
   args: {
     inventoryId: v.id("inventory"),
     quantity: v.number(),
-    paymentMethod: v.union(v.literal("cash"), v.literal("mpesa")),
+    paymentMethod: v.union(
+      v.literal("cash"),
+      v.literal("mpesa"),
+      v.literal("debt")
+    ),
+    customerId: v.optional(v.id("customers")),
   },
-  handler: async (ctx, { inventoryId, quantity, paymentMethod }) => {
+  handler: async (
+    ctx,
+    { inventoryId, quantity, paymentMethod, customerId }
+  ) => {
     if (!ctx.business)
       throw new ConvexError("No active business found for this user.");
 
@@ -246,7 +266,7 @@ export const addSaleForToday = authenticatedMutation({
 
     if (!dailyEntry) {
       const entryId = await ctx.db.insert("dailyEntries", {
-        businessId: ctx.business._id,
+        businessId: ctx.business!._id,
         date: todayKey(),
         closed: false,
         cashTotal: 0,
@@ -256,22 +276,24 @@ export const addSaleForToday = authenticatedMutation({
         profitTotal: 0,
         closedAt: 0,
       });
-
-      const newEntry = await ctx.db.get(entryId);
-      if (!newEntry) throw new ConvexError("Failed to create daily entry.");
-      dailyEntry = newEntry;
+      dailyEntry = (await ctx.db.get(entryId))!;
     }
-
-    // 🔹 Check if a sale for this inventory already exists today
-    let existingSale = await ctx.db
-      .query("sales")
-      .withIndex("by_daily_entry_inventory", (q) =>
-        q.eq("dailyEntryId", dailyEntry._id).eq("inventoryId", inventoryId)
-      )
-      .first();
 
     const totalAmountDelta = item.retailPrice * quantity;
     const totalProfitDelta = (item.retailPrice - item.costPrice) * quantity;
+
+    let existingSale: any = null;
+
+    // ✅ For all payment methods (including debt), we can reuse same-day same-item sales
+    existingSale = await ctx.db
+      .query("sales")
+      .withIndex("by_daily_entry_inventory_payment", (q) =>
+        q
+          .eq("dailyEntryId", dailyEntry._id)
+          .eq("inventoryId", inventoryId)
+          .eq("paymentMethod", paymentMethod)
+      )
+      .first();
 
     if (existingSale) {
       // 🔹 Update existing sale
@@ -281,21 +303,18 @@ export const addSaleForToday = authenticatedMutation({
         totalProfit: existingSale.totalProfit + totalProfitDelta,
       });
     } else {
-      // 🔹 Insert new sale and fetch the full object
+      // 🔹 Insert new sale
       const newSaleId = await ctx.db.insert("sales", {
-        businessId: ctx.business._id,
+        businessId: ctx.business!._id,
         dailyEntryId: dailyEntry._id,
         inventoryId,
         itemName: item.name,
         quantitySold: quantity,
-        paymentMethod,
+        paymentMethod, // ✅ record real payment method, including "debt"
         totalAmount: totalAmountDelta,
         totalProfit: totalProfitDelta,
       });
-
-      const newSale = await ctx.db.get(newSaleId);
-      if (!newSale) throw new ConvexError("Failed to create sale.");
-      existingSale = newSale;
+      existingSale = await ctx.db.get(newSaleId);
     }
 
     // 🔹 Update inventory stock
@@ -303,102 +322,128 @@ export const addSaleForToday = authenticatedMutation({
       quantityAvailable: item.quantityAvailable - quantity,
     });
 
-    // 🔹 Update daily entry totals
-    const cashDelta = paymentMethod === "cash" ? totalAmountDelta : 0;
-    const mpesaDelta = paymentMethod === "mpesa" ? totalAmountDelta : 0;
+    // ✅ Handle debt sales
+    if (paymentMethod === "debt") {
+      if (!customerId)
+        throw new ConvexError("Customer must be selected for debt sales.");
 
-    await ctx.db.patch(dailyEntry._id, {
-      cashTotal: dailyEntry.cashTotal + cashDelta,
-      mpesaTotal: dailyEntry.mpesaTotal + mpesaDelta,
-      salesTotal: dailyEntry.salesTotal + totalAmountDelta,
-      profitTotal: dailyEntry.profitTotal + totalProfitDelta,
-    });
+      // 🔹 Check if the customer already has an existing unpaid debt
+      let existingDebt = await ctx.db
+        .query("debts")
+        .withIndex("by_business_customer_status", (q) =>
+          q
+            .eq("businessId", ctx.business!._id)
+            .eq("customerId", customerId)
+            .eq("status", "pending")
+        )
+        .first();
 
-    // 🔹 Create notification
-    await ctx.db.insert("notifications", {
-      businessId: ctx.business._id,
-      userId: ctx.user._id,
-      type: "payment_alert",
-      title: "Sale Updated",
-      message: `${quantity} x ${item.name} sold for ${totalAmountDelta} (${paymentMethod})`,
-      entityId: existingSale._id, // safe now
-      entityType: "sale",
-      isRead: false,
-      metadata: {
-        inventoryId,
-        quantity,
-        amount: totalAmountDelta,
-        paymentMethod,
-      },
-    });
+      if (existingDebt) {
+        // 🧾 Update existing debt totals
+        await ctx.db.patch(existingDebt._id, {
+          amountOwed: existingDebt.amountOwed + totalAmountDelta,
+          remainingBalance: existingDebt.remainingBalance + totalAmountDelta,
+          balance: existingDebt.balance + totalAmountDelta,
+        });
 
-    return { success: true, message: "Sale added/updated successfully." };
-  },
-});
+        // ➕ Add new debt item
+        await ctx.db.insert("debtItems", {
+          debtId: existingDebt._id,
+          inventoryId,
+          name: item.name,
+          quantityTaken: quantity,
+          price: item.retailPrice,
+          total: totalAmountDelta,
+        });
+      } else {
+        // 🆕 Create a new debt record
+        const debtId = await ctx.db.insert("debts", {
+          businessId: ctx.business!._id,
+          customerId,
+          date: Date.now(),
+          saleId: existingSale._id,
+          amountOwed: totalAmountDelta,
+          amountPaid: 0,
+          remainingBalance: totalAmountDelta,
+          paid: 0,
+          balance: totalAmountDelta,
+          status: "pending",
+        });
 
-/**
- * ➖ Decrement sale quantity
- * - Updates the sale quantity
- * - Adjusts totalAmount, totalProfit, inventory, and daily entry totals
- */
-export const decrementSale = authenticatedMutation({
-  args: {
-    saleId: v.id("sales"),
-    quantity: v.number(), // how much to reduce
-  },
-  handler: async (ctx, { saleId, quantity }) => {
-    const sale = await ctx.db.get(saleId);
-    if (!sale) throw new ConvexError("Sale not found.");
+        await ctx.db.insert("debtItems", {
+          debtId,
+          inventoryId,
+          name: item.name,
+          quantityTaken: quantity,
+          price: item.retailPrice,
+          total: totalAmountDelta,
+        });
+      }
 
-    const inventory = sale.inventoryId
-      ? await ctx.db.get(sale.inventoryId)
-      : null;
+      // 🧾 Update daily debt total
+      await ctx.db.patch(dailyEntry._id, {
+        debtsTotal: dailyEntry.debtsTotal + totalAmountDelta,
+      });
 
-    const dailyEntry = await ctx.db.get(sale.dailyEntryId);
-    if (!dailyEntry) throw new ConvexError("Daily entry not found.");
+      // 🧾 Update business-customer link balance
+      const existingLink = await ctx.db
+        .query("businessCustomers")
+        .withIndex("by_business_customer", (q) =>
+          q.eq("businessId", ctx.business!._id).eq("customerId", customerId)
+        )
+        .unique();
 
-    if (!ctx.business || sale.businessId !== ctx.business._id)
-      throw new ConvexError("Unauthorized.");
+      if (existingLink) {
+        await ctx.db.patch(existingLink._id, {
+          balance: existingLink.balance + totalAmountDelta,
+        });
+      }
 
-    if (quantity > sale.quantitySold)
-      throw new ConvexError("Cannot decrement more than sold quantity.");
+      // 🧾 Send notification
+      await ctx.db.insert("notifications", {
+        businessId: ctx.business!._id,
+        userId: ctx.user._id,
+        type: "debt_reminder",
+        title: existingDebt
+          ? "Existing Customer Debt Updated"
+          : "New Customer Debt Created",
+        message: `${item.name} (${quantity}x) recorded as debt for customer.`,
+        entityId: existingDebt?._id ?? existingSale._id,
+        entityType: "debt",
+        isRead: false,
+        metadata: { inventoryId, quantity, amount: totalAmountDelta },
+      });
+    } else {
+      // ✅ Normal sale totals
+      const cashDelta = paymentMethod === "cash" ? totalAmountDelta : 0;
+      const mpesaDelta = paymentMethod === "mpesa" ? totalAmountDelta : 0;
 
-    const itemPrice = inventory
-      ? inventory.retailPrice
-      : sale.totalAmount / sale.quantitySold;
-    const itemCost = inventory
-      ? inventory.costPrice
-      : sale.totalProfit / sale.quantitySold;
+      await ctx.db.patch(dailyEntry._id, {
+        cashTotal: dailyEntry.cashTotal + cashDelta,
+        mpesaTotal: dailyEntry.mpesaTotal + mpesaDelta,
+        salesTotal: dailyEntry.salesTotal + totalAmountDelta,
+        profitTotal: dailyEntry.profitTotal + totalProfitDelta,
+      });
 
-    const amountDelta = itemPrice * quantity;
-    const profitDelta = (itemPrice - itemCost) * quantity;
-
-    // Update sale
-    await ctx.db.patch(saleId, {
-      quantitySold: sale.quantitySold - quantity,
-      totalAmount: sale.totalAmount - amountDelta,
-      totalProfit: sale.totalProfit - profitDelta,
-    });
-
-    // Update inventory if applicable
-    if (inventory) {
-      await ctx.db.patch(inventory._id, {
-        quantityAvailable: inventory.quantityAvailable + quantity,
+      await ctx.db.insert("notifications", {
+        businessId: ctx.business!._id,
+        userId: ctx.user._id,
+        type: "payment_alert",
+        title: "Sale Updated",
+        message: `${quantity} x ${item.name} sold for ${totalAmountDelta} (${paymentMethod})`,
+        entityId: existingSale._id,
+        entityType: "sale",
+        isRead: false,
+        metadata: {
+          inventoryId,
+          quantity,
+          amount: totalAmountDelta,
+          paymentMethod,
+        },
       });
     }
 
-    // Update daily entry totals
-    const cashDelta = sale.paymentMethod === "cash" ? amountDelta : 0;
-    const mpesaDelta = sale.paymentMethod === "mpesa" ? amountDelta : 0;
-
-    await ctx.db.patch(dailyEntry._id, {
-      cashTotal: dailyEntry.cashTotal - cashDelta,
-      mpesaTotal: dailyEntry.mpesaTotal - mpesaDelta,
-      salesTotal: dailyEntry.salesTotal - amountDelta,
-      profitTotal: dailyEntry.profitTotal - profitDelta,
-    });
-
-    return { success: true, message: "Sale decremented successfully." };
+    return { success: true, message: "Sale added or updated successfully." };
   },
 });
 
@@ -411,40 +456,127 @@ export const deleteSale = authenticatedMutation({
     saleId: v.id("sales"),
   },
   handler: async (ctx, { saleId }) => {
+    // ✅ Fetch sale
     const sale = await ctx.db.get(saleId);
     if (!sale) throw new ConvexError("Sale not found.");
 
+    // ✅ Check business ownership
+    if (!ctx.business || sale.businessId !== ctx.business!._id) {
+      throw new ConvexError("Unauthorized access.");
+    }
+
+    // ✅ Fetch related inventory
     const inventory = sale.inventoryId
       ? await ctx.db.get(sale.inventoryId)
       : null;
 
+    // ✅ Fetch related daily entry
     const dailyEntry = await ctx.db.get(sale.dailyEntryId);
     if (!dailyEntry) throw new ConvexError("Daily entry not found.");
 
-    if (!ctx.business || sale.businessId !== ctx.business._id)
-      throw new ConvexError("Unauthorized.");
-
-    // Update inventory back
+    // ✅ Return sale quantity to inventory
     if (inventory) {
       await ctx.db.patch(inventory._id, {
-        quantityAvailable: inventory.quantityAvailable + sale.quantitySold,
+        quantityAvailable:
+          (inventory.quantityAvailable ?? 0) + sale.quantitySold,
       });
     }
 
-    // Update daily entry totals
+    // ✅ Update daily entry totals
     const cashDelta = sale.paymentMethod === "cash" ? sale.totalAmount : 0;
     const mpesaDelta = sale.paymentMethod === "mpesa" ? sale.totalAmount : 0;
 
     await ctx.db.patch(dailyEntry._id, {
-      cashTotal: dailyEntry.cashTotal - cashDelta,
-      mpesaTotal: dailyEntry.mpesaTotal - mpesaDelta,
-      salesTotal: dailyEntry.salesTotal - sale.totalAmount,
-      profitTotal: dailyEntry.profitTotal - sale.totalProfit,
+      cashTotal: (dailyEntry.cashTotal ?? 0) - cashDelta,
+      mpesaTotal: (dailyEntry.mpesaTotal ?? 0) - mpesaDelta,
+      salesTotal: (dailyEntry.salesTotal ?? 0) - sale.totalAmount,
+      profitTotal: (dailyEntry.profitTotal ?? 0) - sale.totalProfit,
     });
 
-    // Delete the sale
+    // ✅ Delete the sale
     await ctx.db.delete(saleId);
 
     return { success: true, message: "Sale deleted successfully." };
+  },
+});
+
+/**
+ * ➕ Add new item to inventory
+ */
+export const addItemToInventory = authenticatedMutation({
+  args: {
+    name: v.string(),
+    costPrice: v.number(),
+    retailPrice: v.number(),
+    quantityAvailable: v.number(),
+    wholesalePrice: v.optional(v.number()),
+    unit: v.optional(v.string()),
+    category: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    {
+      name,
+      costPrice,
+      retailPrice,
+      quantityAvailable,
+      wholesalePrice,
+      unit,
+      category,
+      imageUrl,
+    }
+  ) => {
+    if (!ctx.business)
+      throw new ConvexError("No active business found for this user.");
+
+    const businessId = ctx.business!._id;
+
+    // ✅ Prevent duplicate items (case-insensitive)
+    const existingItem = await ctx.db
+      .query("inventory")
+      .withIndex("by_business", (q) => q.eq("businessId", businessId))
+      .filter((q) => q.eq(q.field("name"), name.trim().toLowerCase()))
+      .first();
+
+    if (existingItem) {
+      throw new ConvexError(`Item "${name}" already exists in inventory.`);
+    }
+
+    // 🏗️ Insert new inventory item
+    const newItemId = await ctx.db.insert("inventory", {
+      businessId,
+      name: name.trim().toLowerCase(),
+      costPrice,
+      retailPrice,
+      quantityAvailable,
+      wholesalePrice: wholesalePrice ?? undefined,
+      unit: unit ?? "pcs",
+      category: category ?? "Uncategorized",
+      imageUrl:
+        imageUrl ??
+        "https://via.placeholder.com/300x300.png?text=Product+Image",
+    });
+
+    // 🔔 Send system notification
+    await ctx.db.insert("notifications", {
+      businessId,
+      userId: ctx.user._id,
+      type: "stock_alert",
+      title: "New Inventory Item Added",
+      message: `Added ${quantityAvailable} units of "${name}" to inventory.`,
+      entityId: newItemId,
+      entityType: "inventory",
+      isRead: false,
+      metadata: {
+        name,
+        costPrice,
+        retailPrice,
+        quantityAvailable,
+        category,
+      },
+    });
+
+    return { success: true, message: `"${name}" added to inventory.` };
   },
 });

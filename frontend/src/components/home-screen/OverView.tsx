@@ -65,7 +65,7 @@ const OverView = ({ summary, isClosed, todayEntryId }: OverViewProps) => {
             <CustomText
               variant="headline"
               bold
-              color={item.id === "4" ? "success" : "primary"}
+              style={{ color: item.id === "4" ? "#8bce38" : "primary" }}
             >
               {shortenNumber(item.amount)}
             </CustomText>

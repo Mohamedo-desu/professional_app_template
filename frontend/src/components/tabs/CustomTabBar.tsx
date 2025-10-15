@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef } from "react";
 import { TouchableOpacity, useWindowDimensions } from "react-native";
-import { ShoppingBagIcon } from "react-native-heroicons/solid";
+import { MagnifyingGlassIcon } from "react-native-heroicons/solid";
 import type { SharedValue } from "react-native-reanimated";
 import Animated, {
   Easing,
@@ -79,7 +79,7 @@ const CustomTabBar: React.FC<CustomTabBarProps> = ({
             activeOpacity={0.8}
             style={styles.fab}
           >
-            <ShoppingBagIcon size={22} color="#fff" />
+            <MagnifyingGlassIcon size={22} color="#fff" />
           </TouchableOpacity>
         </LinearGradient>
       )}

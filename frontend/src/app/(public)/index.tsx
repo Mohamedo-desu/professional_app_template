@@ -107,6 +107,7 @@ const LoginScreen = () => {
       style={styles.screen}
       contentContainerStyle={styles.contentContainerStyle}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <ScreenAppBar title="Please Login" showGoBack={false} />
       <View style={styles.body}>
@@ -261,7 +262,6 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.background,
   },
   contentContainerStyle: {
-    flex: 1,
     flexGrow: 1,
   },
   body: {

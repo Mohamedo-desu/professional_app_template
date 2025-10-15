@@ -1,16 +1,22 @@
 import React, { FC } from "react";
 import { Control, Controller, FieldErrors, FieldValues } from "react-hook-form";
-import { TextInput, View } from "react-native";
+import {
+  StyleProp,
+  TextInput,
+  TextInputProps,
+  TextStyle,
+  View,
+} from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import CustomText from "./CustomText";
 
-interface InputProps<T extends FieldValues = any> {
+interface InputProps<T extends FieldValues = any>
+  extends Pick<TextInputProps, "keyboardType" | "secureTextEntry" | "style"> {
   control: Control<T>;
   name: string;
   label?: string;
   placeholder?: string;
   errors?: FieldErrors<T>[keyof T];
-  secureTextEntry?: boolean;
 }
 
 const TextInputUnistyles = withUnistyles(TextInput, (theme) => ({
@@ -25,6 +31,7 @@ const Input: FC<InputProps> = ({
   name,
   placeholder,
   secureTextEntry,
+  keyboardType,
   style,
 }) => {
   if (!control) {
@@ -51,13 +58,14 @@ const Input: FC<InputProps> = ({
             style={[
               styles.input,
               errors?.message && { borderColor: "#f87171", borderWidth: 1 },
-              style,
+              style as StyleProp<TextStyle>,
             ]}
             placeholder={placeholder}
             onBlur={onBlur}
             onChangeText={onChange}
             value={value}
             secureTextEntry={secureTextEntry}
+            keyboardType={keyboardType}
           />
         )}
       />

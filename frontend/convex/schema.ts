@@ -114,11 +114,11 @@ export const inventory = defineTable({
   quantityAvailable: v.number(),
   costPrice: v.number(),
   retailPrice: v.number(),
-  wholesalePrice: v.number(),
+  wholesalePrice: v.optional(v.number()),
   unit: v.optional(v.string()),
   category: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
-  embedding: v.array(v.float64()),
+  embedding: v.optional(v.array(v.float64())),
 })
   .vectorIndex("by_embedding", {
     vectorField: "embedding",
@@ -152,14 +152,23 @@ export const sales = defineTable({
   inventoryId: v.optional(v.id("inventory")),
   itemName: v.string(),
   quantitySold: v.number(),
-  paymentMethod: v.union(v.literal("cash"), v.literal("mpesa")),
+  paymentMethod: v.union(
+    v.literal("cash"),
+    v.literal("mpesa"),
+    v.literal("debt")
+  ),
   totalAmount: v.number(),
   totalProfit: v.number(),
 })
   .index("by_business", ["businessId"])
   .index("by_daily_entry", ["dailyEntryId"])
   .index("by_inventory", ["inventoryId"])
-  .index("by_daily_entry_inventory", ["dailyEntryId", "inventoryId"]);
+  .index("by_daily_entry_inventory", ["dailyEntryId", "inventoryId"])
+  .index("by_daily_entry_inventory_payment", [
+    "dailyEntryId",
+    "inventoryId",
+    "paymentMethod",
+  ]);
 
 // 7️⃣ Debts (per customer per business)
 export const debts = defineTable({
@@ -177,6 +186,7 @@ export const debts = defineTable({
 })
   .index("by_business", ["businessId"])
   .index("by_customer", ["customerId"])
+  .index("by_business_customer_status", ["businessId", "customerId", "status"])
   .index("by_date", ["businessId", "date"]);
 
 // 8️⃣ Debt items

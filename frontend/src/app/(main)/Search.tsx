@@ -4,7 +4,8 @@ import CustomText from "@/components/common/CustomText";
 import ScreenAppBar from "@/components/common/ScreenAppBar";
 import { ELEVATION, TAB_BAR_HEIGHT } from "@/constants/device";
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -13,10 +14,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { MagnifyingGlassIcon, XCircleIcon } from "react-native-heroicons/solid";
+import {
+  MagnifyingGlassIcon,
+  ShoppingBagIcon,
+  XCircleIcon,
+} from "react-native-heroicons/solid";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
-import { BADGE_COLOR, PRIMARY_COLOR } from "unistyles";
+import { BADGE_COLOR, PRIMARY_COLOR, TERTIARY_COLOR } from "unistyles";
 
 const SearchScreen = () => {
   // 🔹 Search & UI state
@@ -32,10 +37,6 @@ const SearchScreen = () => {
   };
 
   const handleClear = () => setQuery("");
-  const addTestItems = useMutation(api.dailyEntries.addTestItems);
-  console.log({
-    inventory,
-  });
 
   return (
     <View style={styles.screen}>
@@ -88,6 +89,20 @@ const SearchScreen = () => {
           );
         }}
       />
+      <LinearGradient
+        colors={[PRIMARY_COLOR, TERTIARY_COLOR]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.fabContainer}
+      >
+        <TouchableOpacity
+          onPress={() => router.navigate("/(main)/add")}
+          activeOpacity={0.8}
+          style={styles.fab}
+        >
+          <ShoppingBagIcon size={22} color="#fff" />
+        </TouchableOpacity>
+      </LinearGradient>
     </View>
   );
 };
@@ -129,5 +144,28 @@ const styles = StyleSheet.create((theme, rt) => ({
     justifyContent: "center",
     alignItems: "center",
     gap: theme.gap(10),
+  },
+  fabContainer: {
+    position: "absolute",
+    right: theme.paddingHorizontal,
+    bottom: TAB_BAR_HEIGHT,
+    width: theme.gap(12),
+    height: theme.gap(12),
+    borderRadius: 30,
+    backgroundColor: theme.colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6, // Android shadow
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+  },
+
+  fab: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
 }));

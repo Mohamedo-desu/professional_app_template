@@ -78,7 +78,7 @@ http.route({
         await ctx.runMutation(internal.users.createUser, {
           emailAddress: email,
           clerkId: id,
-          fullName,
+          fullName: fullName || email.split("@")[0],
           imageUrl: avatar,
         });
       } catch (error) {

@@ -134,6 +134,7 @@ const SignupScreen = () => {
       style={styles.screen}
       contentContainerStyle={styles.contentContainerStyle}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <ScreenAppBar title="Please signup" showGoBack={true} />
       <View style={styles.body}>
@@ -295,7 +296,6 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.background,
   },
   contentContainerStyle: {
-    flex: 1,
     flexGrow: 1,
   },
   body: {
